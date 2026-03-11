@@ -1,65 +1,156 @@
-import Image from "next/image";
+'use client';
+
+import { useState } from 'react';
+import SplashScreen from '@/components/SplashScreen';
+import PrivacyNotice from '@/components/PrivacyNotice';
+import RoleSelection from '@/components/RoleSelection';
+import InstitutionIDCapture from '@/components/InstitutionIDCapture';
+import VitalSigns, { type VitalSignsData } from '@/components/VitalSigns';
+import SymptomsSelection from '@/components/SymptomsSelection';
+import AllergyConfirmation from '@/components/AllergyConfirmation';
+import SubmissionSuccess from '@/components/SubmissionSuccess';
+import { type VitalFlag } from '@/lib/vital-flags';
+import type { MemberRole } from '@/types';
+
+type Step = 'splash' | 'privacy' | 'role' | 'id' | 'vitals' | 'symptoms' | 'allergies' | 'submitting' | 'success';
+
+interface KioskData {
+  role: MemberRole;
+  institutionId: string;
+  memberName: string;
+  allergies: string;
+  symptoms: string[];
+  vitalSigns: VitalSignsData | null;
+  triageId: string;
+  flags: VitalFlag[];
+}
+
+const initialData: KioskData = {
+  role: 'student',
+  institutionId: '',
+  memberName: '',
+  allergies: '',
+  symptoms: [],
+  vitalSigns: null,
+  triageId: '',
+  flags: [],
+};
 
 export default function Home() {
+  const [step, setStep] = useState<Step>('splash');
+  const [data, setData] = useState<KioskData>(initialData);
+  const [submitError, setSubmitError] = useState('');
+
+  const handleRestart = () => {
+    setStep('splash');
+    setData(initialData);
+    setSubmitError('');
+  };
+
+  const handleRoleSelect = (role: MemberRole) => {
+    setData((prev) => ({ ...prev, role }));
+    setStep('id');
+  };
+
+  const handleMemberSubmit = (member: { id: string; name: string; allergies: string }) => {
+    setData((prev) => ({
+      ...prev,
+      institutionId: member.id,
+      memberName: member.name,
+      allergies: member.allergies,
+    }));
+    setStep('vitals');
+  };
+
+  const handleVitalsSubmit = (vitalSigns: VitalSignsData) => {
+    setData((prev) => ({ ...prev, vitalSigns }));
+    setStep('symptoms');
+  };
+
+  const handleSymptomsSubmit = (symptoms: string[]) => {
+    setData((prev) => ({ ...prev, symptoms }));
+    setStep('allergies');
+  };
+
+  const handleAllergyConfirm = async (updatedAllergies: string) => {
+    setData((prev) => ({ ...prev, allergies: updatedAllergies }));
+    setStep('submitting');
+    setSubmitError('');
+
+    try {
+      const res = await fetch('/api/triage/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          institutionId: data.institutionId,
+          role: data.role,
+          name: data.memberName,
+          allergies: updatedAllergies,
+          symptoms: data.symptoms,
+          vitalSigns: data.vitalSigns,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        setData((prev) => ({
+          ...prev,
+          triageId: result.triageId,
+          flags: result.flags || [],
+        }));
+        setStep('success');
+      } else {
+        setSubmitError(result.error || 'Submission failed');
+        setStep('allergies');
+      }
+    } catch {
+      setSubmitError('Network error. Please try again.');
+      setStep('allergies');
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <>
+      {step === 'splash' && <SplashScreen onStart={() => setStep('privacy')} />}
+      {step === 'privacy' && <PrivacyNotice onAgree={() => setStep('role')} onBack={() => setStep('splash')} />}
+      {step === 'role' && <RoleSelection onSelect={handleRoleSelect} onBack={() => setStep('privacy')} />}
+      {step === 'id' && <InstitutionIDCapture role={data.role} onSubmit={handleMemberSubmit} onBack={() => setStep('role')} />}
+      {step === 'vitals' && <VitalSigns onSubmit={handleVitalsSubmit} onBack={() => setStep('id')} allergies={data.allergies} />}
+      {step === 'symptoms' && <SymptomsSelection onSubmit={handleSymptomsSubmit} onBack={() => setStep('vitals')} />}
+      {step === 'allergies' && (
+        <AllergyConfirmation
+          allergies={data.allergies}
+          onConfirm={handleAllergyConfirm}
+          onBack={() => setStep('symptoms')}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      )}
+
+      {step === 'submitting' && (
+        <div className="flex min-h-screen flex-col items-center justify-center text-white" style={{ background: '#1a1a4e' }}>
+          <svg className="h-12 w-12 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <p className="mt-4 text-lg font-semibold">Submitting...</p>
+          <p className="mt-1 text-sm text-blue-200/70">Recording your health information</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      )}
+
+      {step === 'success' && (
+        <SubmissionSuccess
+          triageId={data.triageId}
+          memberName={data.memberName}
+          flags={data.flags}
+          onRestart={handleRestart}
+        />
+      )}
+
+      {submitError && (step === 'allergies' || step === 'symptoms') && (
+        <div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-red-600 px-6 py-3 text-sm font-medium text-white shadow-lg">
+          {submitError}
         </div>
-      </main>
-    </div>
+      )}
+    </>
   );
 }
