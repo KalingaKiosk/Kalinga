@@ -64,15 +64,15 @@ export const symptomCategories: SymptomCategory[] = [
 
 // Body region mapping for body view (maps to clickable areas on anatomy figure)
 export const bodyRegionMap: Record<string, string[]> = {
-  head: ['Headache', 'Concussion', 'Eye Irritation', 'Ear Pain', 'Nose Bleed'],
+  head: ['Headache', 'Concussion', 'Eye Irritation', 'Fever', 'Ear Pain', 'Nose Bleed'],
   throat: ['Sore Throat', 'Coughs', 'Colds', 'Respiratory Issues'],
-  chest: ['Respiratory Issues', 'Fever', 'BP Monitoring'],
+  chest: ['Respiratory Issues', 'BP Monitoring'],
   abdomen: ['Abdominal Pain', 'Nausea', 'Vomiting', 'Loss of Appetite', 'Dysmenorrhea'],
   leftArm: ['Muscle Sprain', 'Muscle Strain', 'Dislocation', 'Wounds'],
   rightArm: ['Muscle Sprain', 'Muscle Strain', 'Dislocation', 'Wounds'],
   leftLeg: ['Muscle Sprain', 'Muscle Strain', 'Dislocation', 'Wounds'],
   rightLeg: ['Muscle Sprain', 'Muscle Strain', 'Dislocation', 'Wounds'],
-  skin: ['Rashes', 'Wounds'],
+  skin: ['Rashes', 'Wounds', 'Rashes', 'Physical Examination', 'Body Malaise'],
 };
 
 export function getAllSymptoms(): string[] {
