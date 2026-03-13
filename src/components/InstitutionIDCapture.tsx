@@ -32,16 +32,13 @@ export default function InstitutionIDCapture({
 
   /* Load Tesseract worker safely in browser */
   useEffect(() => {
-
     async function initWorker() {
-
       const { createWorker } = await import('tesseract.js')
-
       const worker = await createWorker('eng')
 
       await worker.setParameters({
         tessedit_char_whitelist: '0123456789-',
-        tessedit_pageseg_mode: '6'
+        tessedit_pageseg_mode: 6 // ✅ fix TypeScript error (number instead of string)
       })
 
       workerRef.current = worker
@@ -52,7 +49,6 @@ export default function InstitutionIDCapture({
     return () => {
       if (workerRef.current) workerRef.current.terminate()
     }
-
   }, [])
 
   /* Detect ID format */
@@ -63,9 +59,7 @@ export default function InstitutionIDCapture({
 
   /* Live grayscale preview */
   useEffect(() => {
-
     const interval = setInterval(() => {
-
       if (!webcamRef.current || !previewCanvasRef.current) return
 
       const screenshot = webcamRef.current.getScreenshot()
@@ -75,7 +69,6 @@ export default function InstitutionIDCapture({
       img.src = screenshot
 
       img.onload = () => {
-
         const canvas = previewCanvasRef.current!
         const ctx = canvas.getContext('2d')
         if (!ctx) return
@@ -107,36 +100,25 @@ export default function InstitutionIDCapture({
         const data = imageData.data
 
         for (let i = 0; i < data.length; i += 4) {
-
-          const gray =
-            0.299 * data[i] +
-            0.587 * data[i + 1] +
-            0.114 * data[i + 2]
-
+          const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
           const value = gray > 140 ? 255 : 0
-
           data[i] = value
           data[i + 1] = value
           data[i + 2] = value
         }
 
         ctx.putImageData(imageData, 0, 0)
-
       }
-
     }, 250)
 
     return () => clearInterval(interval)
-
   }, [])
 
   /* Capture + OCR */
   const captureAndScan = useCallback(async () => {
-
     if (!webcamRef.current || !workerRef.current) return
 
     const screenshot = webcamRef.current.getScreenshot()
-
     if (!screenshot) {
       setError('Failed to capture image')
       return
@@ -146,10 +128,8 @@ export default function InstitutionIDCapture({
     setError('')
 
     try {
-
       const img = new Image()
       img.src = screenshot
-
       await new Promise((resolve) => { img.onload = resolve })
 
       const canvas = document.createElement('canvas')
@@ -183,14 +163,8 @@ export default function InstitutionIDCapture({
       const data = imageData.data
 
       for (let i = 0; i < data.length; i += 4) {
-
-        const gray =
-          0.299 * data[i] +
-          0.587 * data[i + 1] +
-          0.114 * data[i + 2]
-
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
         const value = gray > 140 ? 255 : 0
-
         data[i] = value
         data[i + 1] = value
         data[i + 2] = value
@@ -199,10 +173,7 @@ export default function InstitutionIDCapture({
       ctx.putImageData(imageData, 0, 0)
 
       const processed = canvas.toDataURL('image/png')
-
-      const { data: { text } } =
-        await workerRef.current.recognize(processed)
-
+      const { data: { text } } = await workerRef.current.recognize(processed)
       const extracted = extractID(text)
 
       if (extracted) {
@@ -211,22 +182,18 @@ export default function InstitutionIDCapture({
       } else {
         setError('ID not detected. Try again.')
       }
-
     } catch {
       setError('OCR failed')
     } finally {
       setScanning(false)
     }
-
   }, [])
 
   const handleSubmit = () => {
-
     if (!institutionId) {
       setError('Invalid ID')
       return
     }
-
     if (!name.trim()) {
       setError('Enter member name')
       return
@@ -240,58 +207,39 @@ export default function InstitutionIDCapture({
   }
 
   return (
-
     <div className="flex min-h-screen flex-col bg-gray-50">
-
-      <div
-        className="px-6 py-5"
-        style={{ background: 'linear-gradient(135deg,#1a1a4e,#2d2d6b)' }}
-      >
-
+      <div className="px-6 py-5" style={{ background: 'linear-gradient(135deg,#1a1a4e,#2d2d6b)' }}>
         <button
           onClick={mode === 'choose' ? onBack : () => setMode('choose')}
           className="mb-2 text-blue-300 hover:text-white"
         >
           Back
         </button>
-
-        <h1 className="text-2xl font-bold text-white">
-          {roleLabel} Identification
-        </h1>
-
+        <h1 className="text-2xl font-bold text-white">{roleLabel} Identification</h1>
       </div>
 
       <div className="flex-1 px-6 py-6">
-
         <div className="mx-auto max-w-md">
-
           {mode === 'choose' && (
-
             <div className="space-y-4">
-
               <button
                 onClick={() => setMode('camera')}
                 className="w-full rounded-xl bg-white p-5 shadow"
               >
                 Scan ID Card
               </button>
-
               <button
                 onClick={() => setMode('manual')}
                 className="w-full rounded-xl bg-white p-5 shadow"
               >
                 Enter Manually
               </button>
-
             </div>
           )}
 
           {mode === 'camera' && (
-
             <div className="space-y-4">
-
               <div className="relative rounded-xl overflow-hidden bg-black">
-
                 <Webcam
                   ref={webcamRef}
                   audio={false}
@@ -303,17 +251,10 @@ export default function InstitutionIDCapture({
                   }}
                   className="w-full"
                 />
-
                 <div
                   className="absolute border-4 border-green-400"
-                  style={{
-                    width: '60%',
-                    height: '20%',
-                    top: '40%',
-                    left: '20%'
-                  }}
+                  style={{ width: '60%', height: '20%', top: '40%', left: '20%' }}
                 />
-
               </div>
 
               <button
@@ -329,52 +270,40 @@ export default function InstitutionIDCapture({
                 ref={previewCanvasRef}
                 className="w-full rounded-xl border"
               />
-
             </div>
           )}
 
           {mode === 'manual' && (
-
             <div className="space-y-4">
-
               <input
                 value={institutionId}
                 onChange={(e) => setInstitutionId(e.target.value)}
                 placeholder="XX-XXXX-XXX"
                 className="w-full rounded-xl border px-4 py-3 text-center"
               />
-
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Member Name"
                 className="w-full rounded-xl border px-4 py-3"
               />
-
               <input
                 value={allergies}
                 onChange={(e) => setAllergies(e.target.value)}
                 placeholder="Known Allergies"
                 className="w-full rounded-xl border px-4 py-3"
               />
-
             </div>
           )}
 
           {error && (
-            <div className="mt-4 text-red-600 text-sm">
-              {error}
-            </div>
+            <div className="mt-4 text-red-600 text-sm">{error}</div>
           )}
-
         </div>
-
       </div>
 
       {mode === 'manual' && (
-
         <div className="border-t bg-white px-6 py-4">
-
           <button
             onClick={handleSubmit}
             className="w-full rounded-xl py-4 text-white"
@@ -382,11 +311,8 @@ export default function InstitutionIDCapture({
           >
             Continue
           </button>
-
         </div>
-
       )}
-
     </div>
   )
 }
