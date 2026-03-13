@@ -1,90 +1,95 @@
-'use client';
+'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react';
-import Webcam from 'react-webcam';
-import { createWorker, Worker } from 'tesseract.js';
+import { useState, useRef, useCallback, useEffect } from 'react'
+import Webcam from 'react-webcam'
 
 interface InstitutionIDCaptureProps {
-  role: 'student' | 'employee';
-  onSubmit: (data: { id: string; name: string; allergies: string }) => void;
-  onBack: () => void;
+  role: 'student' | 'employee'
+  onSubmit: (data: { id: string; name: string; allergies: string }) => void
+  onBack: () => void
 }
 
-type Mode = 'choose' | 'camera' | 'manual';
+type Mode = 'choose' | 'camera' | 'manual'
 
-export default function InstitutionIDCapture({ role, onSubmit, onBack }: InstitutionIDCaptureProps) {
+export default function InstitutionIDCapture({
+  role,
+  onSubmit,
+  onBack
+}: InstitutionIDCaptureProps) {
 
-  const [mode, setMode] = useState<Mode>('choose');
-  const [institutionId, setInstitutionId] = useState('');
-  const [name, setName] = useState('');
-  const [allergies, setAllergies] = useState('');
-  const [scanning, setScanning] = useState(false);
-  const [error, setError] = useState('');
+  const [mode, setMode] = useState<Mode>('choose')
+  const [institutionId, setInstitutionId] = useState('')
+  const [name, setName] = useState('')
+  const [allergies, setAllergies] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [error, setError] = useState('')
 
-  const webcamRef = useRef<Webcam>(null);
-  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const workerRef = useRef<Worker | null>(null);
+  const webcamRef = useRef<Webcam>(null)
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null)
+  const workerRef = useRef<any>(null)
 
-  const roleLabel = role === 'student' ? 'Student' : 'Employee';
+  const roleLabel = role === 'student' ? 'Student' : 'Employee'
 
-  /* Initialize OCR worker once */
+  /* Load Tesseract worker safely in browser */
   useEffect(() => {
 
-    const initWorker = async () => {
+    async function initWorker() {
 
-      const worker = await createWorker('eng');
+      const { createWorker } = await import('tesseract.js')
+
+      const worker = await createWorker('eng')
 
       await worker.setParameters({
         tessedit_char_whitelist: '0123456789-',
         tessedit_pageseg_mode: '6'
-      });
+      })
 
-      workerRef.current = worker;
-    };
+      workerRef.current = worker
+    }
 
-    initWorker();
+    initWorker()
 
     return () => {
-      workerRef.current?.terminate();
-    };
+      if (workerRef.current) workerRef.current.terminate()
+    }
 
-  }, []);
+  }, [])
 
-  /* Detect ID format XX-XXXX-XXX */
+  /* Detect ID format */
   const extractID = (text: string): string | null => {
-    const match = text.match(/\d{2}-\d{4}-\d{3}/);
-    return match ? match[0] : null;
-  };
+    const match = text.match(/\d{2}-\d{4}-\d{3}/)
+    return match ? match[0] : null
+  }
 
-  /* Live OCR preview (grayscale frame) */
+  /* Live grayscale preview */
   useEffect(() => {
 
     const interval = setInterval(() => {
 
-      if (!webcamRef.current || !previewCanvasRef.current) return;
+      if (!webcamRef.current || !previewCanvasRef.current) return
 
-      const screenshot = webcamRef.current.getScreenshot();
-      if (!screenshot) return;
+      const screenshot = webcamRef.current.getScreenshot()
+      if (!screenshot) return
 
-      const img = new Image();
-      img.src = screenshot;
+      const img = new Image()
+      img.src = screenshot
 
       img.onload = () => {
 
-        const canvas = previewCanvasRef.current!;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
+        const canvas = previewCanvasRef.current!
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
 
-        const width = img.width;
-        const height = img.height;
+        const width = img.width
+        const height = img.height
 
-        const roiWidth = width * 0.5;
-        const roiHeight = height * 0.18;
-        const roiX = (width - roiWidth) / 2;
-        const roiY = (height - roiHeight) / 2;
+        const roiWidth = width * 0.5
+        const roiHeight = height * 0.18
+        const roiX = (width - roiWidth) / 2
+        const roiY = (height - roiHeight) / 2
 
-        canvas.width = roiWidth;
-        canvas.height = roiHeight;
+        canvas.width = roiWidth
+        canvas.height = roiHeight
 
         ctx.drawImage(
           img,
@@ -96,75 +101,71 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
           0,
           roiWidth,
           roiHeight
-        );
+        )
 
-        const imageData = ctx.getImageData(0, 0, roiWidth, roiHeight);
-        const data = imageData.data;
+        const imageData = ctx.getImageData(0, 0, roiWidth, roiHeight)
+        const data = imageData.data
 
         for (let i = 0; i < data.length; i += 4) {
 
           const gray =
             0.299 * data[i] +
             0.587 * data[i + 1] +
-            0.114 * data[i + 2];
+            0.114 * data[i + 2]
 
-          const value = gray > 140 ? 255 : 0;
+          const value = gray > 140 ? 255 : 0
 
-          data[i] = value;
-          data[i + 1] = value;
-          data[i + 2] = value;
-
+          data[i] = value
+          data[i + 1] = value
+          data[i + 2] = value
         }
 
-        ctx.putImageData(imageData, 0, 0);
+        ctx.putImageData(imageData, 0, 0)
 
-      };
+      }
 
-    }, 200);
+    }, 250)
 
-    return () => clearInterval(interval);
+    return () => clearInterval(interval)
 
-  }, []);
+  }, [])
 
-  /* Capture and run OCR */
+  /* Capture + OCR */
   const captureAndScan = useCallback(async () => {
 
-    if (!webcamRef.current || !workerRef.current) return;
+    if (!webcamRef.current || !workerRef.current) return
 
-    const screenshot = webcamRef.current.getScreenshot();
+    const screenshot = webcamRef.current.getScreenshot()
 
     if (!screenshot) {
-      setError("Failed to capture image.");
-      return;
+      setError('Failed to capture image')
+      return
     }
 
-    setScanning(true);
-    setError('');
+    setScanning(true)
+    setError('')
 
     try {
 
-      const img = new Image();
-      img.src = screenshot;
+      const img = new Image()
+      img.src = screenshot
 
-      await new Promise((resolve) => {
-        img.onload = resolve;
-      });
+      await new Promise((resolve) => { img.onload = resolve })
 
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas error')
 
-      if (!ctx) throw new Error("Canvas error");
+      const width = img.width
+      const height = img.height
 
-      const width = img.width;
-      const height = img.height;
+      const roiWidth = width * 0.5
+      const roiHeight = height * 0.18
+      const roiX = (width - roiWidth) / 2
+      const roiY = (height - roiHeight) / 2
 
-      const roiWidth = width * 0.5;
-      const roiHeight = height * 0.18;
-      const roiX = (width - roiWidth) / 2;
-      const roiY = (height - roiHeight) / 2;
-
-      canvas.width = roiWidth;
-      canvas.height = roiHeight;
+      canvas.width = roiWidth
+      canvas.height = roiHeight
 
       ctx.drawImage(
         img,
@@ -176,69 +177,67 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
         0,
         roiWidth,
         roiHeight
-      );
+      )
 
-      const imageData = ctx.getImageData(0, 0, roiWidth, roiHeight);
-      const data = imageData.data;
+      const imageData = ctx.getImageData(0, 0, roiWidth, roiHeight)
+      const data = imageData.data
 
       for (let i = 0; i < data.length; i += 4) {
 
         const gray =
           0.299 * data[i] +
           0.587 * data[i + 1] +
-          0.114 * data[i + 2];
+          0.114 * data[i + 2]
 
-        const value = gray > 140 ? 255 : 0;
+        const value = gray > 140 ? 255 : 0
 
-        data[i] = value;
-        data[i + 1] = value;
-        data[i + 2] = value;
-
+        data[i] = value
+        data[i + 1] = value
+        data[i + 2] = value
       }
 
-      ctx.putImageData(imageData, 0, 0);
+      ctx.putImageData(imageData, 0, 0)
 
-      const processed = canvas.toDataURL("image/png");
+      const processed = canvas.toDataURL('image/png')
 
       const { data: { text } } =
-        await workerRef.current.recognize(processed);
+        await workerRef.current.recognize(processed)
 
-      const extracted = extractID(text);
+      const extracted = extractID(text)
 
       if (extracted) {
-        setInstitutionId(extracted);
-        setMode('manual');
+        setInstitutionId(extracted)
+        setMode('manual')
       } else {
-        setError("ID not detected. Try again.");
+        setError('ID not detected. Try again.')
       }
 
     } catch {
-      setError("OCR failed.");
+      setError('OCR failed')
     } finally {
-      setScanning(false);
+      setScanning(false)
     }
 
-  }, []);
+  }, [])
 
   const handleSubmit = () => {
 
     if (!institutionId) {
-      setError("Invalid ID");
-      return;
+      setError('Invalid ID')
+      return
     }
 
     if (!name.trim()) {
-      setError("Enter member name");
-      return;
+      setError('Enter member name')
+      return
     }
 
     onSubmit({
       id: institutionId,
       name: name.trim(),
       allergies: allergies.trim()
-    });
-
-  };
+    })
+  }
 
   return (
 
@@ -246,7 +245,7 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
 
       <div
         className="px-6 py-5"
-        style={{ background: 'linear-gradient(135deg, #1a1a4e, #2d2d6b)' }}
+        style={{ background: 'linear-gradient(135deg,#1a1a4e,#2d2d6b)' }}
       >
 
         <button
@@ -300,19 +299,18 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
                   videoConstraints={{
                     width: 1280,
                     height: 720,
-                    facingMode: "user"
+                    facingMode: 'user'
                   }}
                   className="w-full"
                 />
 
-                {/* guide box */}
                 <div
                   className="absolute border-4 border-green-400"
                   style={{
-                    width: "60%",
-                    height: "20%",
-                    top: "40%",
-                    left: "20%"
+                    width: '60%',
+                    height: '20%',
+                    top: '40%',
+                    left: '20%'
                   }}
                 />
 
@@ -324,10 +322,9 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
                 className="w-full rounded-xl py-4 text-white"
                 style={{ background: '#1a1a4e' }}
               >
-                {scanning ? "Scanning..." : "Capture & Scan"}
+                {scanning ? 'Scanning...' : 'Capture & Scan'}
               </button>
 
-              {/* OCR preview */}
               <canvas
                 ref={previewCanvasRef}
                 className="w-full rounded-xl border"
@@ -342,21 +339,21 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
 
               <input
                 value={institutionId}
-                onChange={(e)=>setInstitutionId(e.target.value)}
+                onChange={(e) => setInstitutionId(e.target.value)}
                 placeholder="XX-XXXX-XXX"
                 className="w-full rounded-xl border px-4 py-3 text-center"
               />
 
               <input
                 value={name}
-                onChange={(e)=>setName(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
                 placeholder="Member Name"
                 className="w-full rounded-xl border px-4 py-3"
               />
 
               <input
                 value={allergies}
-                onChange={(e)=>setAllergies(e.target.value)}
+                onChange={(e) => setAllergies(e.target.value)}
                 placeholder="Known Allergies"
                 className="w-full rounded-xl border px-4 py-3"
               />
@@ -365,7 +362,9 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
           )}
 
           {error && (
-            <div className="mt-4 text-red-600 text-sm">{error}</div>
+            <div className="mt-4 text-red-600 text-sm">
+              {error}
+            </div>
           )}
 
         </div>
@@ -389,5 +388,5 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
       )}
 
     </div>
-  );
+  )
 }
