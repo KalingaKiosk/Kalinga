@@ -34,11 +34,12 @@ export default function InstitutionIDCapture({
   useEffect(() => {
     async function initWorker() {
       const { createWorker } = await import('tesseract.js')
-      const worker = await createWorker('eng')
+      import { createWorker, PSM } from 'tesseract.js'
 
+      const worker = await createWorker()
       await worker.setParameters({
-        tessedit_char_whitelist: '0123456789-',
-        tessedit_pageseg_mode: 6 // ✅ fix TypeScript error (number instead of string)
+      tessedit_char_whitelist: '0123456789-',
+      tessedit_pageseg_mode: PSM.SINGLE_BLOCK
       })
 
       workerRef.current = worker
