@@ -39,7 +39,16 @@ export async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS members (
         institution_id VARCHAR(9) PRIMARY KEY,
         member_name VARCHAR(255) NOT NULL,
+        sex VARCHAR(10) DEFAULT '',
+        age INTEGER,
         role VARCHAR(10) NOT NULL DEFAULT 'student',
+        grade_level VARCHAR(50) DEFAULT '',
+        section VARCHAR(50) DEFAULT '',
+        department VARCHAR(100) DEFAULT '',
+        address TEXT DEFAULT '',
+        contact_number VARCHAR(20) DEFAULT '',
+        guardian_name VARCHAR(255) DEFAULT '',
+        guardian_contact VARCHAR(20) DEFAULT '',
         allergies TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT NOW()
       )
@@ -91,6 +100,17 @@ export async function initializeDatabase() {
   await sql`ALTER TABLE triage_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP`;
   await sql`ALTER TABLE triage_records ADD COLUMN IF NOT EXISTS role VARCHAR(10) NOT NULL DEFAULT 'student'`;
 
+  // Add clinic admission slip fields to members if they don't exist
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS sex VARCHAR(10) DEFAULT ''`;
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS age INTEGER`;
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS grade_level VARCHAR(50) DEFAULT ''`;
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS section VARCHAR(50) DEFAULT ''`;
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS department VARCHAR(100) DEFAULT ''`;
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''`;
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS contact_number VARCHAR(20) DEFAULT ''`;
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS guardian_name VARCHAR(255) DEFAULT ''`;
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS guardian_contact VARCHAR(20) DEFAULT ''`;
+
   // Clinic settings table
   await sql`
     CREATE TABLE IF NOT EXISTS clinic_settings (
@@ -115,33 +135,79 @@ export async function initializeDatabase() {
 export async function findMemberById(id: string) {
   const sql = getSQL();
   const rows = await sql`
-    SELECT institution_id, member_name, role, allergies
+    SELECT institution_id, member_name, sex, age, role, grade_level, section,
+           department, address, contact_number, guardian_name, guardian_contact, allergies
     FROM members WHERE institution_id = ${id}
   `;
   return rows.length > 0 ? rows[0] : null;
 }
 
-export async function upsertMember(id: string, name: string, role: MemberRole, allergies: string) {
+export async function upsertMember(id: string, data: {
+  name: string;
+  sex: string;
+  age: number | null;
+  role: MemberRole;
+  grade_level: string;
+  section: string;
+  department: string;
+  address: string;
+  contact_number: string;
+  guardian_name: string;
+  guardian_contact: string;
+  allergies: string;
+}) {
   const sql = getSQL();
   await sql`
-    INSERT INTO members (institution_id, member_name, role, allergies)
-    VALUES (${id}, ${name}, ${role}, ${allergies})
+    INSERT INTO members (institution_id, member_name, sex, age, role, grade_level, section,
+      department, address, contact_number, guardian_name, guardian_contact, allergies)
+    VALUES (${id}, ${data.name}, ${data.sex}, ${data.age}, ${data.role}, ${data.grade_level},
+      ${data.section}, ${data.department}, ${data.address}, ${data.contact_number},
+      ${data.guardian_name}, ${data.guardian_contact}, ${data.allergies})
     ON CONFLICT (institution_id) DO UPDATE SET
       member_name = EXCLUDED.member_name,
+      sex = EXCLUDED.sex,
+      age = EXCLUDED.age,
       role = EXCLUDED.role,
+      grade_level = EXCLUDED.grade_level,
+      section = EXCLUDED.section,
+      department = EXCLUDED.department,
+      address = EXCLUDED.address,
+      contact_number = EXCLUDED.contact_number,
+      guardian_name = EXCLUDED.guardian_name,
+      guardian_contact = EXCLUDED.guardian_contact,
       allergies = EXCLUDED.allergies
   `;
 }
 
-export async function updateMember(id: string, data: { member_name?: string; allergies?: string }) {
+export async function updateMember(id: string, data: {
+  member_name?: string;
+  sex?: string;
+  age?: number | null;
+  grade_level?: string;
+  section?: string;
+  department?: string;
+  address?: string;
+  contact_number?: string;
+  guardian_name?: string;
+  guardian_contact?: string;
+  allergies?: string;
+}) {
   const sql = getSQL();
-  if (data.member_name !== undefined && data.allergies !== undefined) {
-    await sql`UPDATE members SET member_name = ${data.member_name}, allergies = ${data.allergies} WHERE institution_id = ${id}`;
-  } else if (data.member_name !== undefined) {
-    await sql`UPDATE members SET member_name = ${data.member_name} WHERE institution_id = ${id}`;
-  } else if (data.allergies !== undefined) {
-    await sql`UPDATE members SET allergies = ${data.allergies} WHERE institution_id = ${id}`;
-  }
+  await sql`
+    UPDATE members SET
+      member_name = COALESCE(${data.member_name ?? null}, member_name),
+      sex = COALESCE(${data.sex ?? null}, sex),
+      age = COALESCE(${data.age !== undefined ? data.age : null}, age),
+      grade_level = COALESCE(${data.grade_level ?? null}, grade_level),
+      section = COALESCE(${data.section ?? null}, section),
+      department = COALESCE(${data.department ?? null}, department),
+      address = COALESCE(${data.address ?? null}, address),
+      contact_number = COALESCE(${data.contact_number ?? null}, contact_number),
+      guardian_name = COALESCE(${data.guardian_name ?? null}, guardian_name),
+      guardian_contact = COALESCE(${data.guardian_contact ?? null}, guardian_contact),
+      allergies = COALESCE(${data.allergies ?? null}, allergies)
+    WHERE institution_id = ${id}
+  `;
 }
 
 // ─── Triage Operations ──────────────────────────────────────────
@@ -224,7 +290,7 @@ export async function updateTriageRecord(triageId: string, data: {
 export async function getTriageRecord(triageId: string) {
   const sql = getSQL();
   const rows = await sql`
-    SELECT t.*, m.member_name, m.allergies
+    SELECT t.*, m.member_name, m.sex, m.age, m.allergies
     FROM triage_records t
     JOIN members m ON t.institution_id = m.institution_id
     WHERE t.triage_id = ${triageId}
@@ -240,12 +306,24 @@ export async function insertReport(reportId: string, institutionId: string, tria
   `;
 }
 
+export async function deleteTriageRecord(triageId: string) {
+  const sql = getSQL();
+  await sql`DELETE FROM reports WHERE triage_id = ${triageId}`;
+  await sql`DELETE FROM triage_records WHERE triage_id = ${triageId}`;
+}
+
+export async function deleteMemberHistory(institutionId: string) {
+  const sql = getSQL();
+  await sql`DELETE FROM reports WHERE institution_id = ${institutionId}`;
+  await sql`DELETE FROM triage_records WHERE institution_id = ${institutionId}`;
+}
+
 // ─── Dashboard Queries ──────────────────────────────────────────
 
 export async function getRecentTriageRecords(limit = 50) {
   const sql = getSQL();
   return sql`
-    SELECT t.*, m.member_name, m.allergies
+    SELECT t.*, m.member_name, m.sex, m.age, m.allergies
     FROM triage_records t
     JOIN members m ON t.institution_id = m.institution_id
     ORDER BY t.created_at DESC
@@ -256,7 +334,7 @@ export async function getRecentTriageRecords(limit = 50) {
 export async function getFlaggedRecords(limit = 50) {
   const sql = getSQL();
   return sql`
-    SELECT t.*, m.member_name, m.allergies
+    SELECT t.*, m.member_name, m.sex, m.age, m.allergies
     FROM triage_records t
     JOIN members m ON t.institution_id = m.institution_id
     WHERE t.flags != '' AND t.flags IS NOT NULL
@@ -268,7 +346,7 @@ export async function getFlaggedRecords(limit = 50) {
 export async function getMemberHistory(id: string) {
   const sql = getSQL();
   return sql`
-    SELECT t.*, m.member_name, m.allergies
+    SELECT t.*, m.member_name, m.sex, m.age, m.allergies
     FROM triage_records t
     JOIN members m ON t.institution_id = m.institution_id
     WHERE t.institution_id = ${id}
@@ -305,7 +383,7 @@ export async function getDailyReport(date: string, role?: string) {
     `;
   }
   return sql`
-    SELECT t.*, m.member_name, m.allergies
+    SELECT t.*, m.member_name, m.sex, m.age, m.allergies
     FROM triage_records t
     JOIN members m ON t.institution_id = m.institution_id
     WHERE t.visit_date = ${date}
@@ -332,7 +410,7 @@ export async function getMonthlyReport(yearMonth: string, role?: string) {
     `;
   }
   return sql`
-    SELECT t.*, m.member_name, m.allergies
+    SELECT t.*, m.member_name, m.sex, m.age, m.allergies
     FROM triage_records t
     JOIN members m ON t.institution_id = m.institution_id
     WHERE t.visit_date LIKE ${`${monthNum}/%/${year}`}

@@ -5,7 +5,16 @@ import type { MemberRole } from '@/types';
 export interface MemberData {
   institution_id: string;
   member_name: string;
+  sex: string;
+  age: number | null;
   role: MemberRole;
+  grade_level: string;
+  section: string;
+  department: string;
+  address: string;
+  contact_number: string;
+  guardian_name: string;
+  guardian_contact: string;
   allergies: string;
 }
 
@@ -60,10 +69,24 @@ export async function appendMemberData(data: MemberData) {
   const sheets = getSheets();
   const response = await sheets.spreadsheets.values.append({
     spreadsheetId: getSheetId(),
-    range: 'Member Information Sheet!A:D',
+    range: 'Member Information Sheet!A:M',
     valueInputOption: 'USER_ENTERED',
     requestBody: {
-      values: [[data.institution_id, data.member_name, data.role, data.allergies]],
+      values: [[
+        data.institution_id,
+        data.member_name,
+        data.sex,
+        data.age ?? '',
+        data.role,
+        data.grade_level,
+        data.section,
+        data.department,
+        data.address,
+        data.contact_number,
+        data.guardian_name,
+        data.guardian_contact,
+        data.allergies,
+      ]],
     },
   });
   return response.data;
@@ -107,7 +130,7 @@ export async function findMemberInSheets(id: string): Promise<MemberData | null>
   const sheets = getSheets();
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: getSheetId(),
-    range: 'Member Information Sheet!A:D',
+    range: 'Member Information Sheet!A:M',
   });
 
   const rows = response.data.values;
@@ -118,8 +141,17 @@ export async function findMemberInSheets(id: string): Promise<MemberData | null>
     return {
       institution_id: member[0],
       member_name: member[1] || '',
-      role: (member[2] || 'student') as MemberRole,
-      allergies: member[3] || '',
+      sex: member[2] || '',
+      age: member[3] ? parseInt(member[3]) : null,
+      role: (member[4] || 'student') as MemberRole,
+      grade_level: member[5] || '',
+      section: member[6] || '',
+      department: member[7] || '',
+      address: member[8] || '',
+      contact_number: member[9] || '',
+      guardian_name: member[10] || '',
+      guardian_contact: member[11] || '',
+      allergies: member[12] || '',
     };
   }
   return null;

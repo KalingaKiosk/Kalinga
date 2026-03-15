@@ -14,11 +14,35 @@ import type { MemberRole } from '@/types';
 
 type Step = 'splash' | 'privacy' | 'role' | 'id' | 'vitals' | 'symptoms' | 'allergies' | 'submitting' | 'success';
 
+interface MemberSubmitData {
+  id: string;
+  name: string;
+  sex: string;
+  age: string;
+  allergies: string;
+  grade_level: string;
+  section: string;
+  department: string;
+  address: string;
+  contact_number: string;
+  guardian_name: string;
+  guardian_contact: string;
+}
+
 interface KioskData {
   role: MemberRole;
   institutionId: string;
   memberName: string;
+  sex: string;
+  age: string;
   allergies: string;
+  grade_level: string;
+  section: string;
+  department: string;
+  address: string;
+  contact_number: string;
+  guardian_name: string;
+  guardian_contact: string;
   symptoms: string[];
   vitalSigns: VitalSignsData | null;
   triageId: string;
@@ -29,7 +53,16 @@ const initialData: KioskData = {
   role: 'student',
   institutionId: '',
   memberName: '',
+  sex: '',
+  age: '',
   allergies: '',
+  grade_level: '',
+  section: '',
+  department: '',
+  address: '',
+  contact_number: '',
+  guardian_name: '',
+  guardian_contact: '',
   symptoms: [],
   vitalSigns: null,
   triageId: '',
@@ -52,12 +85,21 @@ export default function Home() {
     setStep('id');
   };
 
-  const handleMemberSubmit = (member: { id: string; name: string; allergies: string }) => {
+  const handleMemberSubmit = (member: MemberSubmitData) => {
     setData((prev) => ({
       ...prev,
       institutionId: member.id,
       memberName: member.name,
+      sex: member.sex,
+      age: member.age,
       allergies: member.allergies,
+      grade_level: member.grade_level,
+      section: member.section,
+      department: member.department,
+      address: member.address,
+      contact_number: member.contact_number,
+      guardian_name: member.guardian_name,
+      guardian_contact: member.guardian_contact,
     }));
     setStep('vitals');
   };
@@ -85,7 +127,16 @@ export default function Home() {
           institutionId: data.institutionId,
           role: data.role,
           name: data.memberName,
+          sex: data.sex,
+          age: data.age,
           allergies: updatedAllergies,
+          grade_level: data.grade_level,
+          section: data.section,
+          department: data.department,
+          address: data.address,
+          contact_number: data.contact_number,
+          guardian_name: data.guardian_name,
+          guardian_contact: data.guardian_contact,
           symptoms: data.symptoms,
           vitalSigns: data.vitalSigns,
         }),

@@ -19,7 +19,11 @@ function generateTriageId(): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { institutionId, role, name, allergies, symptoms, vitalSigns } = body;
+    const {
+      institutionId, role, name, sex, age, allergies, symptoms, vitalSigns,
+      grade_level, section, department, address, contact_number,
+      guardian_name, guardian_contact,
+    } = body;
 
     if (!institutionId || !name || !symptoms || !vitalSigns || !role) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -51,7 +55,20 @@ export async function POST(request: NextRequest) {
 
     const symptomsStr = Array.isArray(symptoms) ? symptoms.join(', ') : symptoms;
 
-    await upsertMember(institutionId, name, role as MemberRole, allergies || '');
+    await upsertMember(institutionId, {
+      name,
+      sex: sex || '',
+      age: age ? parseInt(age) : null,
+      role: role as MemberRole,
+      grade_level: grade_level || '',
+      section: section || '',
+      department: department || '',
+      address: address || '',
+      contact_number: contact_number || '',
+      guardian_name: guardian_name || '',
+      guardian_contact: guardian_contact || '',
+      allergies: allergies || '',
+    });
     await insertTriageRecord({
       triageId,
       institutionId,
@@ -77,7 +94,16 @@ export async function POST(request: NextRequest) {
         await appendMemberData({
           institution_id: institutionId,
           member_name: name,
+          sex: sex || '',
+          age: age ? parseInt(age) : null,
           role: role as MemberRole,
+          grade_level: grade_level || '',
+          section: section || '',
+          department: department || '',
+          address: address || '',
+          contact_number: contact_number || '',
+          guardian_name: guardian_name || '',
+          guardian_contact: guardian_contact || '',
           allergies: allergies || '',
         });
       }

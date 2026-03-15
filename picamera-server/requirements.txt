@@ -1,0 +1,6 @@
+flask>=3.0.0
+flask-cors>=4.0.0
+opencv-python>=4.8.0
+pytesseract>=0.3.10
+# For Raspberry Pi Camera Module (install on Pi only):
+# picamera2>=0.3.12

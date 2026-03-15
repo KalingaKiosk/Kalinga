@@ -9,6 +9,8 @@ interface TriageRecord {
   institution_id: string;
   role: string;
   member_name: string;
+  sex: string;
+  age: number | null;
   allergies: string;
   visit_time: string;
   visit_date: string;
@@ -61,6 +63,58 @@ export default function Dashboard() {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [showPinGate, setShowPinGate] = useState(false);
   const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteRecord = async (triageId: string) => {
+    if (!authToken) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/triage/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ triageId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDeleteConfirm(null);
+        fetchRecords(tab === 'search' ? 'history' : tab, tab === 'search' ? searchId : undefined);
+        fetchStats();
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteAllHistory = async (institutionId: string) => {
+    if (!authToken) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/triage/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ institutionId, deleteAll: true }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDeleteConfirm(null);
+        fetchRecords(tab === 'search' ? 'history' : tab, tab === 'search' ? searchId : undefined);
+        fetchStats();
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const fetchRecords = useCallback(async (view: string, id?: string) => {
     setLoading(true);
@@ -270,8 +324,18 @@ export default function Dashboard() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-gray-900">{record.member_name}</span>
+                        {record.sex && (
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            record.sex === 'Male' ? 'bg-sky-100 text-sky-700' : 'bg-pink-100 text-pink-700'
+                          }`}>
+                            {record.sex}
+                          </span>
+                        )}
+                        {record.age && (
+                          <span className="text-xs text-gray-500">Age {record.age}</span>
+                        )}
                         <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-500">
                           {record.institution_id}
                         </span>
@@ -342,15 +406,55 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* Expand / Medical Assessment */}
+                  {/* Expand / Medical Assessment + Delete */}
                   {authToken && (
                     <div className="mt-2">
-                      <button
-                        onClick={() => setExpandedRecord(expandedRecord === record.triage_id ? null : record.triage_id)}
-                        className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
-                      >
-                        {expandedRecord === record.triage_id ? 'Hide Assessment' : 'Edit / Add Assessment'}
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setExpandedRecord(expandedRecord === record.triage_id ? null : record.triage_id)}
+                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                        >
+                          {expandedRecord === record.triage_id ? 'Hide Assessment' : 'Edit / Add Assessment'}
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm(deleteConfirm === record.triage_id ? null : record.triage_id)}
+                          className="text-xs font-medium text-red-500 hover:text-red-700"
+                        >
+                          Delete Record
+                        </button>
+                      </div>
+
+                      {/* Delete confirmation */}
+                      {deleteConfirm === record.triage_id && (
+                        <div className="mt-2 rounded-xl border-2 border-red-200 bg-red-50 p-3">
+                          <p className="text-xs font-semibold text-red-700">Are you sure you want to delete this record?</p>
+                          <p className="mt-1 text-xs text-red-600">This action cannot be undone.</p>
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              onClick={() => handleDeleteRecord(record.triage_id)}
+                              disabled={deleting}
+                              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                            >
+                              {deleting ? 'Deleting...' : 'Delete This Record'}
+                            </button>
+                            {tab === 'search' && (
+                              <button
+                                onClick={() => handleDeleteAllHistory(record.institution_id)}
+                                disabled={deleting}
+                                className="rounded-lg bg-red-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-900 disabled:opacity-50"
+                              >
+                                {deleting ? 'Deleting...' : 'Delete ALL History'}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setDeleteConfirm(null)}
+                              className="rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {expandedRecord === record.triage_id && (
                         <MedicalAssessment
