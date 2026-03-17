@@ -80,8 +80,6 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
-
-      {/* HEADER */}
       <div className="px-6 py-5 text-center bg-indigo-900 text-white">
         <div className="relative mx-auto max-w-md">
           <button onClick={onBack} className="absolute left-0 top-0 text-sm text-blue-300">
@@ -128,7 +126,7 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
                 <rect x="90" y="200" width="40" height="120" fill="#c7d2fe" />
                 <rect x="170" y="200" width="40" height="120" fill="#c7d2fe" />
 
-                {/* HOTSPOTS */}
+                {/* ✅ FIXED HOTSPOTS - use 'class' not 'className' for SVG */}
                 {bodyRegions.map((r) => (
                   <circle
                     key={r.id}
@@ -137,7 +135,8 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
                     r="12"
                     fill="#ef4444"
                     opacity="0.7"
-                    className="cursor-pointer"
+                    class="cursor-pointer hover:opacity-90" // ✅ Fixed: 'class' instead of 'className'
+                    style={{ cursor: 'pointer' }} // ✅ Added inline style for cursor
                     onClick={() => handleBodyClick(r.id)}
                   />
                 ))}
