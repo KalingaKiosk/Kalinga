@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { symptomTree, SymptomNode } from '@/lib/symptomTree';
+import { symptomTree, SymptomNode } from "@/lib/symptomTree";
 
 interface Props {
   onSubmit: (symptoms: string[]) => void;
