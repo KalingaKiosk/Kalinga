@@ -37,10 +37,11 @@ export default function PrivacyNotice({ onAgree, onBack }: PrivacyNoticeProps) {
             <div>
               <h3 className="font-semibold text-gray-800">Information We Collect</h3>
               <ul className="mt-1 list-disc space-y-1 pl-5">
+                <li>Name, Age, Sex</li>
                 <li>Institution ID</li>
-                <li>Name and allergy information</li>
-                <li>Reported symptoms and chief complaints</li>
+                <li>Allergy Information</li>
                 <li>Vital signs (temperature, SpO2, pulse, blood pressure)</li>
+                <li>Reported Symptoms and Chief Complaints</li>
                 <li>Date and time of visit</li>
               </ul>
             </div>
