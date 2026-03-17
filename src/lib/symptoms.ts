@@ -74,7 +74,7 @@ export const bodyRegionMap: Record<string, string[]> = {
   rightArm: ['Muscle Sprain', 'Muscle Strain', 'Dislocation', 'Wounds'],
   leftLeg: ['Muscle Sprain', 'Muscle Strain', 'Dislocation', 'Wounds'],
   rightLeg: ['Muscle Sprain', 'Muscle Strain', 'Dislocation', 'Wounds'],
-  skin: ['Rashes', 'Wounds', 'Rashes', 'Physical Examination', 'Body Malaise'],
+  skin: ['Rashes', 'Wounds', 'Physical Examination', 'Body Malaise'],
 };
 
 export function getAllSymptoms(): string[] {
