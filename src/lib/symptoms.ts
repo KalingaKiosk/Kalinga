@@ -79,3 +79,4 @@ export const bodyRegionMap: Record<string, string[]> = {
 
 export function getAllSymptoms(): string[] {
   return [...new Set(symptomCategories.flatMap((c) => c.symptoms))];
+}
