@@ -38,6 +38,8 @@ export const symptomCategories: SymptomCategory[] = [
     symptoms: [
       'Rashes',
       'Eye Irritation',
+      'Eye Redness',
+      'Eye Sore',
       'Ear Pain',
       'Nose Bleed',
     ],
@@ -64,7 +66,7 @@ export const symptomCategories: SymptomCategory[] = [
 
 // Body region mapping for body view (maps to clickable areas on anatomy figure)
 export const bodyRegionMap: Record<string, string[]> = {
-  head: ['Headache', 'Concussion', 'Eye Irritation', 'Fever', 'Ear Pain', 'Nose Bleed'],
+  head: ['Headache', 'Concussion', 'Eye Irritation', 'Eye Redness', 'Sore Eyes', 'Fever', 'Ear Pain', 'Nose Bleed'],
   throat: ['Sore Throat', 'Coughs', 'Colds', 'Respiratory Issues'],
   chest: ['Respiratory Issues', 'BP Monitoring'],
   abdomen: ['Abdominal Pain', 'Nausea', 'Vomiting', 'Loss of Appetite', 'Dysmenorrhea'],
