@@ -40,7 +40,7 @@ interface Stats {
   flaggedToday: number;
 }
 
-type Tab = 'recent' | 'flagged' | 'search';
+type Tab = 'recent' | 'pending' | 'flagged' | 'search';
 
 function dispositionLabel(d: string | null): string {
   if (!d) return '';
@@ -160,8 +160,10 @@ export default function Dashboard() {
     fetchStats();
   }, [fetchRecords, fetchStats]);
 
+  // Fixed useEffect for tab switching - now includes 'pending'
   useEffect(() => {
     if (tab === 'recent') fetchRecords('recent');
+    else if (tab === 'pending') fetchRecords('pending');
     else if (tab === 'flagged') fetchRecords('flagged');
   }, [tab, fetchRecords]);
 
@@ -234,7 +236,10 @@ export default function Dashboard() {
                 Setup DB
               </button>
               <button
-                onClick={() => { fetchRecords(tab === 'search' ? 'recent' : tab); fetchStats(); }}
+                onClick={() => { 
+                  fetchRecords(tab === 'search' ? 'history' : tab, tab === 'search' ? searchId : undefined); 
+                  fetchStats(); 
+                }}
                 className="rounded-lg bg-white/10 px-3 py-2 text-xs text-white hover:bg-white/20"
               >
                 Refresh
@@ -260,10 +265,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs - FIXED with pending tab */}
       <div className="border-b bg-white px-6">
         <div className="mx-auto flex max-w-6xl gap-1">
-          {(['recent', 'flagged', 'search'] as Tab[]).map((t) => (
+          {(['recent', 'pending', 'flagged', 'search'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -272,6 +277,7 @@ export default function Dashboard() {
               }`}
             >
               {t === 'recent' && 'Recent Visits'}
+              {t === 'pending' && 'Pending Review'}
               {t === 'flagged' && 'Flagged / Abnormal'}
               {t === 'search' && 'Patient History'}
             </button>
@@ -355,7 +361,7 @@ export default function Dashboard() {
                         )}
                       </div>
                       <div className="mt-1 text-xs text-gray-400">
-                        {record.triage_id} &middot; {record.visit_date} {record.visit_time}
+                        {record.triage_id} · {record.visit_date} {record.visit_time}
                       </div>
                     </div>
 
@@ -396,7 +402,7 @@ export default function Dashboard() {
                   {record.final_diagnosis && (
                     <div className="mt-2 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs text-indigo-700">
                       <strong>Diagnosis:</strong> {record.final_diagnosis}
-                      {record.treatment_actions && <> &middot; <strong>Treatment:</strong> {record.treatment_actions}</>}
+                      {record.treatment_actions && <> · <strong>Treatment:</strong> {record.treatment_actions}</>}
                     </div>
                   )}
 
@@ -441,7 +447,8 @@ export default function Dashboard() {
                               <button
                                 onClick={() => handleDeleteAllHistory(record.institution_id)}
                                 disabled={deleting}
-                                className="rounded-lg bg-red-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-900 disabled:opacity-50"
+                                className="rounded-lg bg-red-800 px-3 py-1.
+                                                                py-1.5 text-xs font-semibold text-white hover:bg-red-900 disabled:opacity-50"
                               >
                                 {deleting ? 'Deleting...' : 'Delete ALL History'}
                               </button>
