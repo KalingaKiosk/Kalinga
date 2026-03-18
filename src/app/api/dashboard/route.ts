@@ -4,6 +4,7 @@ import {
   getFlaggedRecords,
   getMemberHistory,
   getDashboardStats,
+  getPendingReviewRecords, // Add this import
 } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
@@ -18,6 +19,11 @@ export async function GET(request: NextRequest) {
 
     if (view === 'flagged') {
       const records = await getFlaggedRecords();
+      return NextResponse.json({ records });
+    }
+
+    if (view === 'pending') { // New pending review view
+      const records = await getPendingReviewRecords();
       return NextResponse.json({ records });
     }
 
