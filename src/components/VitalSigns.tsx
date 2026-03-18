@@ -22,7 +22,7 @@ interface FieldConfig {
   key: keyof VitalSignsData;
   label: string;
   unit: string;
-  placeholder: string;  // ✅ Required in interface
+  placeholder: string;
   min: number;
   max: number;
   required?: boolean;
@@ -30,72 +30,13 @@ interface FieldConfig {
 }
 
 const fields: FieldConfig[] = [
-  { 
-    key: 'temperature', 
-    label: 'Body Temperature', 
-    unit: '°C', 
-    placeholder: '36.5',  // ✅ Added
-    min: 30, 
-    max: 45, 
-    required: true, 
-    icon: '🌡️' 
-  },
-  { 
-    key: 'spo2', 
-    label: 'SpO2 (Oxygen Saturation)', 
-    unit: '%', 
-    placeholder: '98',    // ✅ Added
-    min: 50, 
-    max: 100, 
-    required: true, 
-    icon: '💉' 
-  },
-  { 
-    key: 'heartRate', 
-    label: 'Pulse / Heart Rate', 
-    unit: 'bpm', 
-    placeholder: '72',    // ✅ Added
-    min: 30, 
-    max: 220, 
-    required: true, 
-    icon: '❤️' 
-  },
-  { 
-    key: 'bloodPressureSystolic', 
-    label: 'BP Systolic', 
-    unit: 'mmHg', 
-    placeholder: '120',   // ✅ Added
-    min: 60, 
-    max: 250, 
-    icon: '🩺' 
-  },
-  { 
-    key: 'bloodPressureDiastolic', 
-    label: 'BP Diastolic', 
-    unit: 'mmHg', 
-    placeholder: '80',    // ✅ Added
-    min: 30, 
-    max: 160, 
-    icon: '🩺' 
-  },
-  { 
-    key: 'respiratoryRate', 
-    label: 'Respiratory Rate', 
-    unit: '/min', 
-    placeholder: '16',    // ✅ Added
-    min: 5, 
-    max: 60, 
-    icon: '🫁' 
-  },
-  { 
-    key: 'weight', 
-    label: 'Weight', 
-    unit: 'kg', 
-    placeholder: '65',    // ✅ Added
-    min: 10, 
-    max: 300, 
-    icon: '⚖️' 
-  },
+  { key: 'temperature', label: 'Body Temperature', unit: '°C', placeholder: '36.5', min: 30, max: 45, required: true, icon: '🌡️' },
+  { key: 'spo2', label: 'SpO2 (Oxygen)', unit: '%', placeholder: '98', min: 50, max: 100, required: true, icon: '💉' },
+  { key: 'heartRate', label: 'Heart Rate', unit: 'bpm', placeholder: '72', min: 30, max: 220, required: true, icon: '❤️' },
+  { key: 'bloodPressureSystolic', label: 'BP Systolic', unit: 'mmHg', placeholder: '120', min: 60, max: 250, icon: '🩺' },
+  { key: 'bloodPressureDiastolic', label: 'BP Diastolic', unit: 'mmHg', placeholder: '80', min: 30, max: 160, icon: '🩺' },
+  { key: 'respiratoryRate', label: 'Resp. Rate', unit: 'breaths/min', placeholder: '16', min: 5, max: 60, icon: '🫁' },
+  { key: 'weight', label: 'Weight', unit: 'kg', placeholder: '65', min: 10, max: 300, icon: '⚖️' },
 ];
 
 export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsProps) {
@@ -109,10 +50,10 @@ export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsPr
     weight: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof VitalSignsData, string>>>({});
+  const [currentFieldIndex, setCurrentFieldIndex] = useState(0);
 
   const updateField = (key: keyof VitalSignsData, value: string) => {
     setData((prev) => ({ ...prev, [key]: value }));
-    // ✅ Fixed: Clear error when user types
     setErrors((prev) => {
       const newErrors = { ...prev };
       delete newErrors[key];
@@ -148,154 +89,172 @@ export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsPr
   };
 
   const handleSubmit = () => {
-    if (validate()) onSubmit(data);
+    if (validate()) {
+      onSubmit(data);
+    }
+  };
+
+  const getFieldStatus = (index: number) => {
+    if (errors[fields[index].key as keyof VitalSignsData]) return 'error';
+    if (data[fields[index].key as keyof VitalSignsData].trim()) return 'complete';
+    return 'pending';
   };
 
   return (
-    <div className="space-y-4">
-      {/* Allergies Display */}
-      {allergies && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-red-600 font-medium">⚠️ Allergies:</span>
-            <span className="text-red-800">{allergies}</span>
+    <div className="flex min-h-screen flex-col bg-gradient-to-br from-indigo-50 via-white to-blue-50">
+      {/* Header */}
+      <div className="px-6 py-6" style={{ background: 'linear-gradient(135deg, #1a1a4e 0%, #2d2d6b 100%)' }}>
+        <div className="mx-auto max-w-2xl">
+          <button
+            onClick={onBack}
+            className="mb-4 flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/30"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
+          <div className="text-center text-white">
+            <h1 className="text-3xl font-bold">Vital Signs</h1>
+            <p className="mt-2 text-lg opacity-90">Record patient measurements</p>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Vital Signs Form */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {fields.map((field) => (
-          <div key={field.key} className="space-y-1">
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-              <span>{field.icon}</span>
-              <span>{field.label}</span>
-              {field.required && <span className="text-red-500">*</span>}
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.1"
-                min={field.min}
-                max={field.max}
-                placeholder={field.placeholder}
-                value={data[field.key]}
-                onChange={(e) => updateField(field.key, e.target.value)}
-                className={`w-full rounded-lg border px-3 py-2 pr-12 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${
-                  errors[field.key] 
-                    ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500' 
-                    : 'border-gray-200'
+      {/* Progress Bar */}
+      <div className="mx-auto w-full max-w-2xl px-6 pb-6">
+        <div className="mx-4 rounded-full bg-white/50 p-1 shadow-lg">
+          <div className="flex h-2 items-center justify-between rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 p-0.5">
+            {fields.map((_, index) => (
+              <div
+                key={index}
+                className={`h-1.5 flex-1 rounded-full transition-all ${
+                  index <= currentFieldIndex
+                    ? 'bg-white shadow-sm'
+                    : 'bg-white/50'
                 }`}
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
-                {field.unit}
-              </span>
-            </div>
-            {errors[field.key] && (
-              <p className="text-xs text-red-600">{errors[field.key]}</p>
-            )}
+            ))}
           </div>
-        ))}
+        </div>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Step {currentFieldIndex + 1} of {fields.length}
+        </p>
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-3 pt-4">
-        <button
-          onClick={onBack}
-          className="flex-1 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          Back
-        </button>
-        <button
-          onClick={handleSubmit}
-          className="flex-1 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          Next: Symptoms
-        </button>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
-      {/* Header */}
-      <div className="px-6 py-5" style={{ background: 'linear-gradient(135deg, #1a1a4e, #2d2d6b)' }}>
-        <button
-          onClick={onBack}
-          className="mb-2 flex items-center gap-1 text-sm text-blue-300/70 hover:text-white"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-        <h1 className="text-2xl font-bold text-white">Vital Signs</h1>
-        <p className="mt-1 text-sm text-blue-200/70">Enter the patient&apos;s measurements</p>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="mx-auto max-w-md space-y-4">
-          {/* Allergy Warning */}
+      <div className="flex-1 px-6 pb-12">
+        <div className="mx-auto max-w-2xl">
+          {/* Allergies Alert */}
           {allergies && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                Known Allergies
+            <div className="mb-6 rounded-2xl border border-red-200/50 bg-gradient-to-r from-red-50 to-pink-50 p-6 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+                  ⚠️
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-red-800">Known Allergies</h3>
+                  <p className="mt-1 text-sm text-red-700">{allergies}</p>
+                </div>
               </div>
-              <p className="mt-1 text-sm text-red-600">{allergies}</p>
             </div>
           )}
 
-          {/* Sensor readings info */}
-          <div className="rounded-xl p-3 text-center text-xs" style={{ background: '#eef0ff', color: '#6c63ff' }}>
-            Enter readings from Pulse Oximeter (SpO2 + Pulse) and IR Thermometer (Temperature)
-          </div>
+          {/* Linear Table Form */}
+          <div className="space-y-4">
+            {fields.map((field, index) => {
+              const status = getFieldStatus(index);
+              const value = data[field.key as keyof VitalSignsData];
+              const hasError = errors[field.key as keyof VitalSignsData];
 
-          {/* Fields */}
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <div className="space-y-4">
-              {fields.map((field) => (
-                <div key={field.key}>
-                  <label className="mb-1 flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">
-                      {field.icon} {field.label}
-                      {field.required && <span className="ml-1 text-red-500">*</span>}
-                    </span>
-                    <span className="text-xs text-gray-400">{field.unit}</span>
-                  </label>
-                  <div className="relative">
+              return (
+                <div
+                  key={field.key}
+                  className={`group rounded-2xl bg-white p-6 shadow-sm transition-all hover:shadow-md ${
+                    status === 'complete' 
+                      ? 'ring-2 ring-green-200 border-green-200' 
+                      : status === 'error' 
+                      ? 'ring-2 ring-red-200 border-red-200' 
+                      : 'border border-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`h-10 w-10 rounded-xl flex items-center justify-center text-lg font-bold shadow-sm transition-all ${
+                          status === 'complete'
+                            ? 'bg-green-100 text-green-700 ring-2 ring-green-200'
+                            : status === 'error'
+                            ? 'bg-red-100 text-red-700 ring-2 ring-red-200'
+                            : 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-200'
+                        }`}
+                      >
+                        {status === 'complete' ? '✓' : field.icon}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900">{field.label}</div>
+                        <div className="text-sm text-gray-500">{field.unit}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {status === 'complete' && (
+                        <div className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          ✓ Complete
+                        </div>
+                      )}
+                      <span className={`text-sm font-medium ${
+                        status === 'error' ? 'text-red-600' : 'text-gray-500'
+                      }`}>
+                        {index + 1}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
                     <input
                       type="text"
                       inputMode="decimal"
-                      value={data[field.key]}
-                      onChange={(e) => updateField(field.key, e.target.value)}
                       placeholder={field.placeholder}
-                      className={`w-full rounded-xl border-2 px-4 py-3 text-gray-900 transition-colors ${
-                        errors[field.key] ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-indigo-500'
+                      value={value}
+                      onChange={(e) => {
+                        updateField(field.key as keyof VitalSignsData, e.target.value);
+                        if (currentFieldIndex !== index) setCurrentFieldIndex(index);
+                      }}
+                      className={`w-full rounded-xl border-2 px-5 py-4 text-lg font-semibold transition-all focus:outline-none focus:ring-4 ${
+                        hasError
+                          ? 'border-red-300 bg-red-50/50 text-red-900 placeholder-red-300 focus:border-red-400 focus:ring-red-100'
+                          : value.trim()
+                          ? 'border-green-300 bg-green-50/30 text-green-900 focus:border-green-400 focus:ring-green-100'
+                          : 'border-gray-200 bg-white/50 text-gray-900 placeholder-gray-400 focus:border-indigo-400 focus:ring-indigo-100'
                       }`}
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">{field.unit}</span>
+                    {hasError && (
+                      <p className="mt-2 flex items-center gap-1 rounded-lg bg-red-50 p-2 text-sm text-red-700">
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        {errors[field.key as keyof VitalSignsData]}
+                      </p>
+                    )}
                   </div>
-                  {errors[field.key] && <p className="mt-1 text-xs text-red-500">{errors[field.key]}</p>}
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="border-t bg-white px-6 py-4">
-        <div className="mx-auto max-w-md">
+      <div className="border-t bg-white/80 backdrop-blur-sm px-6 py-6 shadow-lg">
+        <div className="mx-auto max-w-2xl">
           <button
             onClick={handleSubmit}
-            className="w-full rounded-xl py-4 text-sm font-semibold text-white transition-all"
-            style={{ background: '#1a1a4e' }}
+            disabled={Object.keys(errors).length > 0}
+            className="w-full rounded-2xl py-4 px-6 text-lg font-bold text-white shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none hover:scale-[1.02] active:scale-[0.98]"
+            style={{
+              background: 'linear-gradient(135deg, #1a1a4e 0%, #2d2d6b 50%, #4a4a8a 100%)',
+            }}
           >
-            Continue to Symptoms
+            {Object.values(data).some(v => v.trim()) ? '✅ Continue to Symptoms' : 'Continue to Symptoms'}
           </button>
         </div>
       </div>
