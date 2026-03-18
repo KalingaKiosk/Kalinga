@@ -331,6 +331,18 @@ export async function getRecentTriageRecords(limit = 50) {
   `;
 }
 
+export async function getPendingReviewRecords(limit = 50) {
+  const sql = getSQL();
+  return sql`
+    SELECT t.*, m.member_name, m.sex, m.age, m.allergies
+    FROM triage_records t
+    JOIN members m ON t.institution_id = m.institution_id
+    WHERE t.updated_by IS NULL
+    ORDER BY t.created_at DESC
+    LIMIT ${limit}
+  `;
+}
+
 export async function getFlaggedRecords(limit = 50) {
   const sql = getSQL();
   return sql`
