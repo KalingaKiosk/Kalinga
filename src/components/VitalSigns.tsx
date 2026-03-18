@@ -30,13 +30,13 @@ interface FieldConfig {
 }
 
 const fields: FieldConfig[] = [
-  { key: 'temperature', label: 'Body Temperature', unit: '°C', placeholder: '36.5', min: 30, max: 45, required: true, icon: '🌡️' },
-  { key: 'spo2', label: 'SpO2 (Oxygen)', unit: '%', placeholder: '98', min: 50, max: 100, required: true, icon: '💉' },
-  { key: 'heartRate', label: 'Heart Rate', unit: 'bpm', placeholder: '72', min: 30, max: 220, required: true, icon: '❤️' },
-  { key: 'bloodPressureSystolic', label: 'BP Systolic', unit: 'mmHg', placeholder: '120', min: 60, max: 250, icon: '🩺' },
-  { key: 'bloodPressureDiastolic', label: 'BP Diastolic', unit: 'mmHg', placeholder: '80', min: 30, max: 160, icon: '🩺' },
-  { key: 'respiratoryRate', label: 'Resp. Rate', unit: 'breaths/min', placeholder: '16', min: 5, max: 60, icon: '🫁' },
-  { key: 'weight', label: 'Weight', unit: 'kg', placeholder: '65', min: 10, max: 300, icon: '⚖️' },
+  { key: 'temperature', label: 'Body Temperature', unit: '°C', min: 30, max: 45, required: true, icon: '🌡️' },
+  { key: 'spo2', label: 'SpO2 (Oxygen)', unit: '%', min: 50, max: 100, required: true, icon: '💉' },
+  { key: 'heartRate', label: 'Heart Rate', unit: 'bpm', min: 30, max: 220, required: true, icon: '❤️' },
+  { key: 'bloodPressureSystolic', label: 'BP Systolic', unit: 'mmHg', min: 60, max: 250, icon: '🩺' },
+  { key: 'bloodPressureDiastolic', label: 'BP Diastolic', unit: 'mmHg', min: 30, max: 160, icon: '🩺' },
+  { key: 'respiratoryRate', label: 'Resp. Rate', unit: 'breaths/min', min: 5, max: 60, icon: '🫁' },
+  { key: 'weight', label: 'Weight', unit: 'kg', min: 10, max: 300, icon: '⚖️' },
 ];
 
 export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsProps) {
