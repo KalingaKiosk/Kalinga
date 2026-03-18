@@ -19,12 +19,10 @@ const bodyRegions = [
 
 export default function SymptomsSelection({ onSubmit, onBack }: Props) {
   const [view, setView] = useState<ViewMode>('body');
-
   const [currentNodes, setCurrentNodes] = useState<SymptomNode[]>(symptomTree);
   const [path, setPath] = useState<SymptomNode[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
 
-  // ✅ toggle symptom
   const toggleSymptom = (symptom: string) => {
     setSelected((prev) =>
       prev.includes(symptom)
@@ -33,7 +31,6 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
     );
   };
 
-  // 👉 drill down
   const handleClick = (node: SymptomNode) => {
     if (node.children) {
       setPath((prev) => [...prev, node]);
@@ -43,13 +40,10 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
     }
   };
 
-  // 🔙 go up
   const goBackLevel = () => {
     const newPath = [...path];
     newPath.pop();
-
     setPath(newPath);
-
     if (newPath.length === 0) {
       setCurrentNodes(symptomTree);
     } else {
@@ -57,11 +51,9 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
     }
   };
 
-  // 🧍 BODY CLICK → OPEN TREE
   const handleBodyClick = (regionId: string) => {
     const node = symptomTree.find((n) => n.id === regionId);
     if (!node) return;
-
     setView('list');
     setPath([node]);
     setCurrentNodes(node.children || []);
@@ -82,7 +74,7 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
     <div className="flex min-h-screen flex-col bg-gray-50">
       <div className="px-6 py-5 text-center bg-indigo-900 text-white">
         <div className="relative mx-auto max-w-md">
-          <button onClick={onBack} className="absolute left-0 top-0 text-sm text-blue-300">
+          <button onClick={onBack} className="absolute left-0 top-0 text-sm text-blue-300 hover:text-blue-200">
             ←
           </button>
           <h1 className="text-lg font-bold">SYMPTOMS</h1>
@@ -90,21 +82,20 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
         </div>
       </div>
 
-      {/* VIEW TOGGLE */}
       <div className="bg-white px-6 py-3 shadow-sm">
         <div className="flex max-w-md mx-auto rounded-full p-1 bg-gray-100">
           <button
             onClick={() => setView('body')}
-            className={`flex-1 py-2 text-sm rounded-full ${
-              view === 'body' ? 'bg-white shadow' : 'text-gray-500'
+            className={`flex-1 py-2 text-sm rounded-full font-medium transition-all ${
+              view === 'body' ? 'bg-white shadow-sm text-indigo-900' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             BODY
           </button>
           <button
             onClick={() => setView('list')}
-            className={`flex-1 py-2 text-sm rounded-full ${
-              view === 'list' ? 'bg-white shadow' : 'text-gray-500'
+            className={`flex-1 py-2 text-sm rounded-full font-medium transition-all ${
+              view === 'list' ? 'bg-white shadow-sm text-indigo-900' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             LIST
@@ -112,74 +103,71 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
         </div>
       </div>
 
-      {/* CONTENT */}
       <div className="flex-1 px-6 py-4">
         <div className="mx-auto max-w-md space-y-4">
-
-          {/* 🧍 BODY VIEW */}
           {view === 'body' && (
-            <div className="bg-white p-4 rounded-xl shadow flex justify-center">
-              <svg viewBox="0 0 300 400" width="260">
-                {/* Body */}
-                <circle cx="150" cy="40" r="25" fill="#c7d2fe" />
-                <rect x="120" y="70" width="60" height="120" fill="#c7d2fe" />
-                <rect x="90" y="200" width="40" height="120" fill="#c7d2fe" />
-                <rect x="170" y="200" width="40" height="120" fill="#c7d2fe" />
+            <div className="bg-white p-8 rounded-xl shadow-lg flex justify-center">
+              <svg viewBox="0 0 300 400" width="260" className="select-none">
+                <circle cx="150" cy="40" r="28" fill="#c7d2fe" stroke="#a5b4fc" strokeWidth="2"/>
+                <rect x="118" y="70" width="64" height="120" rx="8" fill="#c7d2fe" stroke="#a5b4fc" strokeWidth="2"/>
+                <rect x="88" y="200" width="44" height="120" rx="6" fill="#c7d2fe" stroke="#a5b4fc" strokeWidth="2"/>
+                <rect x="168" y="200" width="44" height="120" rx="6" fill="#c7d2fe" stroke="#a5b4fc" strokeWidth="2"/>
 
-                {/* ✅ FIXED HOTSPOTS - use 'class' not 'className' for SVG */}
                 {bodyRegions.map((r) => (
-                  <circle
-                    key={r.id}
-                    cx={r.cx}
-                    cy={r.cy}
-                    r="12"
-                    fill="#ef4444"
-                    opacity="0.7"
-                    class="cursor-pointer hover:opacity-90" // ✅ Fixed: 'class' instead of 'className'
-                    style={{ cursor: 'pointer' }} // ✅ Added inline style for cursor
-                    onClick={() => handleBodyClick(r.id)}
-                  />
+                  <g key={r.id}>
+                    <circle
+                      cx={r.cx}
+                      cy={r.cy}
+                      r="16"
+                      fill="#ef4444"
+                      className="cursor-pointer hover:fill-red-500 hover:scale-110 transition-all duration-200 shadow-lg hover:shadow-xl"
+                      onClick={() => handleBodyClick(r.id)}
+                    />
+                    <text
+                      x={r.cx}
+                      y={r.cy + 4}
+                      textAnchor="middle"
+                      fontSize="12"
+                      fontWeight="bold"
+                      fill="white"
+                      className="cursor-pointer"
+                      onClick={() => handleBodyClick(r.id)}
+                    >
+                      {r.id === 'head' ? 'H' : r.id === 'torso' ? 'T' : r.id === 'limbs' ? 'L' : 'G'}
+                    </text>
+                  </g>
                 ))}
               </svg>
             </div>
           )}
 
-          {/* 📋 LIST VIEW */}
           {view === 'list' && (
             <>
-              {/* Breadcrumb */}
               {path.length > 0 && (
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-500 mb-3">
                   {path.map((p) => p.label).join(' > ')}
                 </div>
               )}
-
-              {/* Back */}
               {path.length > 0 && (
-                <button onClick={goBackLevel} className="text-sm text-indigo-600">
+                <button onClick={goBackLevel} className="text-sm text-indigo-600 hover:text-indigo-700 mb-4">
                   ← Back
                 </button>
               )}
-
-              {/* Nodes */}
               <div className="space-y-2">
                 {currentNodes.map((node) => {
                   const isSelected = selected.includes(node.label);
-
                   return (
                     <button
                       key={node.id}
                       onClick={() => handleClick(node)}
-                      className={`w-full rounded-xl border p-4 text-left ${
+                      className={`w-full rounded-xl border p-4 text-left transition-all hover:shadow-md ${
                         isSelected
-                          ? 'bg-indigo-100 border-indigo-500'
-                          : 'bg-white border-gray-200'
+                          ? 'bg-indigo-100 border-indigo-500 shadow-md'
+                          : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                     >
                       <div className="flex justify-between">
-                        <span className="text-sm font-medium">
-                          {node.label}
-                        </span>
+                        <span className="text-sm font-medium">{node.label}</span>
                         {node.children && <span>›</span>}
                       </div>
                     </button>
@@ -189,10 +177,9 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
             </>
           )}
 
-          {/* SELECTED */}
           {selected.length > 0 && (
-            <div className="bg-indigo-50 p-3 rounded-xl">
-              <h3 className="text-sm font-semibold mb-2">
+            <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+              <h3 className="text-sm font-semibold mb-2 text-indigo-900">
                 Selected ({selected.length})
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -200,7 +187,7 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
                   <button
                     key={s}
                     onClick={() => toggleSymptom(s)}
-                    className="text-xs bg-indigo-500 text-white px-3 py-1 rounded-full"
+                    className="text-xs bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-full transition-all"
                   >
                     {s} ✕
                   </button>
@@ -211,13 +198,12 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
         </div>
       </div>
 
-      {/* FOOTER */}
-      <div className="border-t bg-white px-6 py-4">
+      <div className="border-t bg-white px-6 py-4 shadow-sm">
         <div className="mx-auto max-w-md">
           <button
             onClick={handleSubmit}
             disabled={selected.length === 0}
-            className="w-full rounded-xl py-4 text-sm font-semibold text-white bg-indigo-900 disabled:opacity-40"
+            className="w-full rounded-xl py-4 text-sm font-semibold text-white bg-indigo-900 hover:bg-indigo-800 disabled:opacity-50 transition-all shadow-lg"
           >
             CONTINUE ({selected.length})
           </button>
