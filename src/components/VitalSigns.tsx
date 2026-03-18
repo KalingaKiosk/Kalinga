@@ -22,7 +22,7 @@ interface FieldConfig {
   key: keyof VitalSignsData;
   label: string;
   unit: string;
-  placeholder: string;
+  placeholder: string;  // ✅ Required in interface
   min: number;
   max: number;
   required?: boolean;
@@ -30,13 +30,72 @@ interface FieldConfig {
 }
 
 const fields: FieldConfig[] = [
-  { key: 'temperature', label: 'Body Temperature', unit: '°C', min: 30, max: 45, required: true, icon: '🌡️' },
-  { key: 'spo2', label: 'SpO2 (Oxygen Saturation)', unit: '%', min: 50, max: 100, required: true, icon: '💉' },
-  { key: 'heartRate', label: 'Pulse / Heart Rate', unit: 'bpm', min: 30, max: 220, required: true, icon: '❤️' },
-  { key: 'bloodPressureSystolic', label: 'BP Systolic', unit: 'mmHg', min: 60, max: 250, icon: '🩺' },
-  { key: 'bloodPressureDiastolic', label: 'BP Diastolic', unit: 'mmHg', min: 30, max: 160, icon: '🩺' },
-  { key: 'respiratoryRate', label: 'Respiratory Rate', unit: '/min', min: 5, max: 60, icon: '🫁' },
-  { key: 'weight', label: 'Weight', unit: 'kg', min: 10, max: 300, icon: '⚖️' },
+  { 
+    key: 'temperature', 
+    label: 'Body Temperature', 
+    unit: '°C', 
+    placeholder: '36.5',  // ✅ Added
+    min: 30, 
+    max: 45, 
+    required: true, 
+    icon: '🌡️' 
+  },
+  { 
+    key: 'spo2', 
+    label: 'SpO2 (Oxygen Saturation)', 
+    unit: '%', 
+    placeholder: '98',    // ✅ Added
+    min: 50, 
+    max: 100, 
+    required: true, 
+    icon: '💉' 
+  },
+  { 
+    key: 'heartRate', 
+    label: 'Pulse / Heart Rate', 
+    unit: 'bpm', 
+    placeholder: '72',    // ✅ Added
+    min: 30, 
+    max: 220, 
+    required: true, 
+    icon: '❤️' 
+  },
+  { 
+    key: 'bloodPressureSystolic', 
+    label: 'BP Systolic', 
+    unit: 'mmHg', 
+    placeholder: '120',   // ✅ Added
+    min: 60, 
+    max: 250, 
+    icon: '🩺' 
+  },
+  { 
+    key: 'bloodPressureDiastolic', 
+    label: 'BP Diastolic', 
+    unit: 'mmHg', 
+    placeholder: '80',    // ✅ Added
+    min: 30, 
+    max: 160, 
+    icon: '🩺' 
+  },
+  { 
+    key: 'respiratoryRate', 
+    label: 'Respiratory Rate', 
+    unit: '/min', 
+    placeholder: '16',    // ✅ Added
+    min: 5, 
+    max: 60, 
+    icon: '🫁' 
+  },
+  { 
+    key: 'weight', 
+    label: 'Weight', 
+    unit: 'kg', 
+    placeholder: '65',    // ✅ Added
+    min: 10, 
+    max: 300, 
+    icon: '⚖️' 
+  },
 ];
 
 export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsProps) {
@@ -53,7 +112,12 @@ export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsPr
 
   const updateField = (key: keyof VitalSignsData, value: string) => {
     setData((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => ({ ...prev, [key]: undefined }));
+    // ✅ Fixed: Clear error when user types
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      delete newErrors[key];
+      return newErrors;
+    });
   };
 
   const validate = (): boolean => {
@@ -62,18 +126,19 @@ export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsPr
 
     for (const field of fields) {
       const val = data[field.key];
-      if (field.required && !val) {
+      if (field.required && !val.trim()) {
         newErrors[field.key] = `${field.label} is required`;
         valid = false;
         continue;
       }
-      if (!val) continue;
+      if (!val.trim()) continue;
+      
       const num = parseFloat(val);
       if (isNaN(num)) {
         newErrors[field.key] = 'Must be a number';
         valid = false;
       } else if (num < field.min || num > field.max) {
-        newErrors[field.key] = `Must be ${field.min}–${field.max}`;
+        newErrors[field.key] = `Must be ${field.min}–${field.max} ${field.unit}`;
         valid = false;
       }
     }
@@ -85,6 +150,72 @@ export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsPr
   const handleSubmit = () => {
     if (validate()) onSubmit(data);
   };
+
+  return (
+    <div className="space-y-4">
+      {/* Allergies Display */}
+      {allergies && (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-3">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-red-600 font-medium">⚠️ Allergies:</span>
+            <span className="text-red-800">{allergies}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Vital Signs Form */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {fields.map((field) => (
+          <div key={field.key} className="space-y-1">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <span>{field.icon}</span>
+              <span>{field.label}</span>
+              {field.required && <span className="text-red-500">*</span>}
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min={field.min}
+                max={field.max}
+                placeholder={field.placeholder}
+                value={data[field.key]}
+                onChange={(e) => updateField(field.key, e.target.value)}
+                className={`w-full rounded-lg border px-3 py-2 pr-12 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${
+                  errors[field.key] 
+                    ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500' 
+                    : 'border-gray-200'
+                }`}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                {field.unit}
+              </span>
+            </div>
+            {errors[field.key] && (
+              <p className="text-xs text-red-600">{errors[field.key]}</p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-3 pt-4">
+        <button
+          onClick={onBack}
+          className="flex-1 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Back
+        </button>
+        <button
+          onClick={handleSubmit}
+          className="flex-1 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+        >
+          Next: Symptoms
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
