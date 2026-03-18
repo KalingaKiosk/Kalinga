@@ -99,24 +99,93 @@ export const symptomTree: SymptomNode[] = [
     ],
   },
 
+  // ✅ SEPARATED ARMS AND LEGS
   {
-    id: 'limbs',
-    label: 'Limbs',
+    id: 'arms',
+    label: 'Arms',
     children: [
       {
-        id: 'hand',
-        label: 'Hand',
+        id: 'upper_arm',
+        label: 'Upper Arm',
         children: [
-          { id: 'hand_sprain', label: 'Sprain' },
-          { id: 'hand_injury', label: 'Injury' },
+          { id: 'arm_pain', label: 'Arm Pain' },
+          { id: 'arm_swelling', label: 'Arm Swelling' },
+          { id: 'arm_numbness', label: 'Numbness/Tingling' },
         ],
       },
       {
-        id: 'ankle',
-        label: 'Ankle',
+        id: 'elbow',
+        label: 'Elbow',
         children: [
-          { id: 'ankle_sprain', label: 'Sprain' },
-          { id: 'ankle_injury', label: 'Injury' },
+          { id: 'elbow_pain', label: 'Elbow Pain' },
+          { id: 'tennis_elbow', label: 'Tennis Elbow' },
+        ],
+      },
+      {
+        id: 'forearm',
+        label: 'Forearm/Wrist',
+        children: [
+          { id: 'wrist_sprain', label: 'Wrist Sprain' },
+          { id: 'carpal_tunnel', label: 'Carpal Tunnel Symptoms' },
+        ],
+      },
+      {
+        id: 'hand',
+        label: 'Hand/Fingers',
+        children: [
+          { id: 'hand_sprain', label: 'Hand Sprain' },
+          { id: 'hand_injury', label: 'Hand Injury' },
+          { id: 'finger_pain', label: 'Finger Pain/Swelling' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'legs',
+    label: 'Legs',
+    children: [
+      {
+        id: 'hip',
+        label: 'Hip',
+        children: [
+          { id: 'hip_pain', label: 'Hip Pain' },
+          { id: 'hip_injury', label: 'Hip Injury' },
+        ],
+      },
+      {
+        id: 'thigh',
+        label: 'Thigh',
+        children: [
+          { id: 'thigh_pain', label: 'Thigh Pain' },
+          { id: 'thigh_swelling', label: 'Thigh Swelling' },
+        ],
+      },
+      {
+        id: 'knee',
+        label: 'Knee',
+        children: [
+          { id: 'knee_pain', label: 'Knee Pain' },
+          { id: 'knee_swelling', label: 'Knee Swelling' },
+          { id: 'knee_instability', label: 'Knee Instability' },
+        ],
+      },
+      {
+        id: 'shin_calf',
+        label: 'Shin/Calf',
+        children: [
+          { id: 'shin_splints', label: 'Shin Splints' },
+          { id: 'calf_pain', label: 'Calf Pain/Cramps' },
+        ],
+      },
+      {
+        id: 'ankle_foot',
+        label: 'Ankle/Foot',
+        children: [
+          { id: 'ankle_sprain', label: 'Ankle Sprain' },
+          { id: 'ankle_injury', label: 'Ankle Injury' },
+          { id: 'foot_pain', label: 'Foot Pain' },
+          { id: 'plantar_fasciitis', label: 'Plantar Fasciitis' },
         ],
       },
     ],
@@ -128,6 +197,8 @@ export const symptomTree: SymptomNode[] = [
     children: [
       { id: 'painful_urination', label: 'Painful Urination' },
       { id: 'blood_urine', label: 'Blood in Urine' },
+      { id: 'urinary_frequency', label: 'Frequent Urination' },
+      { id: 'urinary_incontinence', label: 'Urinary Incontinence' },
     ],
   },
 ];
