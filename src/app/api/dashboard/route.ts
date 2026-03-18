@@ -5,7 +5,7 @@ import {
   getMemberHistory,
   getDashboardStats,
   getPendingReviewRecords, // Add this import
-} from '@/lib/db.ts';
+} from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   const view = request.nextUrl.searchParams.get('view') || 'recent';
