@@ -189,11 +189,14 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
   };
 
   const handleIDChange = (value: string) => {
+    const maxLimit = role === 'employee' ? 7 : 9; // Allows employees to input 7 digits only.
     const digits = value.replace(/\D/g, '').slice(0, 9);
     setInstitutionId(digits);
     setMemberFound(null);
     setNotFound(false);
-    if (digits.length === 9) lookupMember(digits);
+    if (digits.length === maxLimit) {
+      lookupMember(digits);
+    }
   };
 
   const handleSubmit = () => {
