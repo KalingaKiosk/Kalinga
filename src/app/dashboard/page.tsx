@@ -468,6 +468,27 @@ export default function Dashboard() {
                         <MedicalAssessment
                           triageId={record.triage_id}
                           role={record.role}
+                          member={{
+                            name: record.member_name,
+                            sex: record.sex,
+                            age: record.age,
+                            allergies: record.allergies,
+                          }}
+                          visit={{
+                            date: record.visit_date,
+                            time: record.visit_time,
+                          }}
+                          symptoms={record.symptoms}
+                          vitals={{
+                            temperature: record.temperature,
+                            spo2: record.spo2,
+                            heart_rate: record.heart_rate,
+                            bp_systolic: record.bp_systolic,
+                            bp_diastolic: record.bp_diastolic,
+                            respiratory_rate: record.respiratory_rate,
+                            weight: record.weight,
+                          }}
+                          flags={record.flags}
                           currentData={{
                             final_diagnosis: record.final_diagnosis,
                             treatment_actions: record.treatment_actions,
