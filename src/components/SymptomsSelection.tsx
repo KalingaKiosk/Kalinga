@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { symptomTree, SymptomNode } from '@/lib/symptomTree';
+import { BODY_REGIONS } from './body-regions';
 
 interface Props {
   onSubmit: (symptoms: string[]) => void;
@@ -10,12 +11,21 @@ interface Props {
 
 type ViewMode = 'body' | 'list';
 
-const bodyRegions = [
-  { id: 'head', cx: 150, cy: 45 },
-  { id: 'torso', cx: 150, cy: 150 },
-  { id: 'limbs', cx: 100, cy: 250 },
-  { id: 'genitourinary', cx: 150, cy: 240 },
-];
+function isSymptomInRegion(
+  symptomLabel: string,
+  topLevelId: string,
+  tree: SymptomNode[],
+): boolean {
+  const root = tree.find((n) => n.id === topLevelId);
+  if (!root) return false;
+  const stack: SymptomNode[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (node.label === symptomLabel) return true;
+    if (node.children) stack.push(...node.children);
+  }
+  return false;
+}
 
 export default function SymptomsSelection({ onSubmit, onBack }: Props) {
   const [view, setView] = useState<ViewMode>('body');
@@ -106,37 +116,42 @@ export default function SymptomsSelection({ onSubmit, onBack }: Props) {
       <div className="flex-1 px-6 py-4">
         <div className="mx-auto max-w-md space-y-4">
           {view === 'body' && (
-            <div className="bg-white p-8 rounded-xl shadow-lg flex justify-center">
-              <svg viewBox="0 0 300 400" width="260" className="select-none">
-                <circle cx="150" cy="40" r="28" fill="#c7d2fe" stroke="#a5b4fc" strokeWidth="2"/>
-                <rect x="118" y="70" width="64" height="120" rx="8" fill="#c7d2fe" stroke="#a5b4fc" strokeWidth="2"/>
-                <rect x="88" y="200" width="44" height="120" rx="6" fill="#c7d2fe" stroke="#a5b4fc" strokeWidth="2"/>
-                <rect x="168" y="200" width="44" height="120" rx="6" fill="#c7d2fe" stroke="#a5b4fc" strokeWidth="2"/>
-
-                {bodyRegions.map((r) => (
-                  <g key={r.id}>
-                    <circle
-                      cx={r.cx}
-                      cy={r.cy}
-                      r="16"
-                      fill="#ef4444"
-                      className="cursor-pointer hover:fill-red-500 hover:scale-110 transition-all duration-200 shadow-lg hover:shadow-xl"
-                      onClick={() => handleBodyClick(r.id)}
-                    />
-                    <text
-                      x={r.cx}
-                      y={r.cy + 4}
-                      textAnchor="middle"
-                      fontSize="12"
-                      fontWeight="bold"
-                      fill="white"
-                      className="cursor-pointer"
-                      onClick={() => handleBodyClick(r.id)}
+            <div className="bg-white p-6 rounded-xl shadow-lg flex flex-col items-center">
+              <p className="mb-3 text-xs text-gray-500 text-center">
+                Tap a body region to select symptoms
+              </p>
+              <svg viewBox="0 0 300 420" width="280" className="select-none">
+                {BODY_REGIONS.map((region) => {
+                  const hasSelection = selected.some((s) =>
+                    isSymptomInRegion(s, region.targetId, symptomTree),
+                  );
+                  return (
+                    <g
+                      key={region.key}
+                      className="cursor-pointer group"
+                      onClick={() => handleBodyClick(region.targetId)}
                     >
-                      {r.id === 'head' ? 'H' : r.id === 'torso' ? 'T' : r.id === 'limbs' ? 'L' : 'G'}
-                    </text>
-                  </g>
-                ))}
+                      <path
+                        d={region.path}
+                        fill={hasSelection ? '#818cf8' : '#c7d2fe'}
+                        stroke="#4f46e5"
+                        strokeWidth="1.5"
+                        className="transition-colors group-hover:fill-indigo-400"
+                      />
+                      <text
+                        x={region.labelPos.x}
+                        y={region.labelPos.y}
+                        textAnchor="middle"
+                        fontSize="11"
+                        fontWeight="600"
+                        fill="#1e1b4b"
+                        pointerEvents="none"
+                      >
+                        {region.label}
+                      </text>
+                    </g>
+                  );
+                })}
               </svg>
             </div>
           )}
