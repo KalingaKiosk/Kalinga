@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findMemberById } from '@/lib/db';
+import { isValidIdAnyRole } from '@/lib/id-validation';
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id');
 
-  if (!id || id.length !== 9 || !/^\d{9}$/.test(id)) {
+  if (!id || !isValidIdAnyRole(id)) {
     return NextResponse.json(
-      { error: 'Invalid Institution ID. Must be a 9-digit number.' },
-      { status: 400 }
+      { error: 'Invalid ID. Must be a 7-digit (employee) or 9-digit (student) number.' },
+      { status: 400 },
     );
   }
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     console.error('Member lookup error:', error);
     return NextResponse.json(
       { error: 'Failed to look up member. Please try again.' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

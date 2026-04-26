@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import { createWorker } from 'tesseract.js';
+import { expectedIdLength, isValidId } from '@/lib/id-validation';
 
 const PICAMERA_URL = 'http://localhost:5555';
 
@@ -84,16 +85,23 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
     checkPiCamera();
   }, []);
 
-  // Extract ID from OCR text — supports LRN format (XX-XXXX-XXX) and plain 9 digits
+  // Extract ID from OCR text — supports LRN format (XX-XXXX-XXX), plain 9 digits (students),
+  // and plain 7 digits (employees). Role determines which length is preferred.
   const extractID = (text: string): string | null => {
-    // Try LRN format first: XX-XXXX-XXX
+    // LRN format always takes priority (formatted with dashes)
     const lrnMatch = text.match(/\d{2}-\d{4}-\d{3}/);
     if (lrnMatch) {
       return lrnMatch[0].replace(/-/g, '');
     }
-    // Fall back to plain 9 digits
-    const plainMatch = text.match(/\b\d{9}\b/);
-    return plainMatch ? plainMatch[0] : null;
+    // Try the role-preferred length first, then the other
+    const patterns = role === 'employee'
+      ? [/\b\d{7}\b/, /\b\d{9}\b/]
+      : [/\b\d{9}\b/, /\b\d{7}\b/];
+    for (const p of patterns) {
+      const m = text.match(p);
+      if (m) return m[0];
+    }
+    return null;
   };
 
   // Scan using PiCamera server
@@ -166,7 +174,7 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
   };
 
   const lookupMember = async (idValue: string) => {
-    if (idValue.length !== 9) return;
+    if (!isValidId(idValue, role)) return;
 
     setLookingUp(true);
     setMemberFound(null);
@@ -189,8 +197,8 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
   };
 
   const handleIDChange = (value: string) => {
-    const maxLimit = role === 'employee' ? 7 : 9; // Allows employees to input 7 digits only.
-    const digits = value.replace(/\D/g, '').slice(0, 9);
+    const maxLimit = expectedIdLength(role);
+    const digits = value.replace(/\D/g, '').slice(0, maxLimit);
     setInstitutionId(digits);
     setMemberFound(null);
     setNotFound(false);
@@ -200,8 +208,9 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
   };
 
   const handleSubmit = () => {
-    if (!institutionId || institutionId.length !== 9) {
-      setError('Please enter a valid 9-digit Institution ID.');
+    const expectedLen = expectedIdLength(role);
+    if (!institutionId || !isValidId(institutionId, role)) {
+      setError(`Please enter a valid ${expectedLen}-digit ${role === 'employee' ? 'Employee' : 'Institution'} ID.`);
       return;
     }
     if (!name.trim()) {
@@ -293,7 +302,7 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
                 </div>
                 <div className="text-left">
                   <div className="font-semibold text-gray-900">Enter Manually</div>
-                  <div className="text-sm text-gray-500">Type the 9-digit Institution ID / LRN number</div>
+                  <div className="text-sm text-gray-500">{`Type the ${expectedIdLength(role)}-digit ${role === 'employee' ? 'Employee' : 'Institution'} ID`}</div>
                 </div>
               </button>
             </div>
@@ -370,7 +379,7 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
                 </>
               )}
               <button onClick={() => setMode('manual')} className="w-full py-2 text-sm" style={{ color: '#6c63ff' }}>
-                Enter Institution ID manually instead
+                {`Enter ${expectedIdLength(role)}-digit ${role === 'employee' ? 'Employee' : 'Institution'} ID manually instead`}
               </button>
             </div>
           )}
@@ -380,17 +389,17 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
             <div className="space-y-4">
               {/* Institution ID */}
               <div className="rounded-2xl bg-white p-6 shadow-sm">
-                <label className="block text-sm font-medium text-gray-700">LRN / Institution ID</label>
+                <label className="block text-sm font-medium text-gray-700">{role === 'employee' ? 'Employee ID' : 'LRN / Institution ID'}</label>
                 <input
                   type="text"
                   inputMode="numeric"
                   value={institutionId}
                   onChange={(e) => handleIDChange(e.target.value)}
-                  placeholder="Enter 9-digit LRN or Institution ID"
+                  placeholder={`Enter ${expectedIdLength(role)}-digit ${role === 'employee' ? 'Employee' : 'Institution'} ID`}
                   className="mt-2 w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-center font-mono text-xl tracking-widest text-gray-900 transition-colors focus:border-indigo-500"
                   maxLength={11}
                 />
-                <div className="mt-1 text-center text-xs text-gray-400">{institutionId.length}/9 digits</div>
+                <div className="mt-1 text-center text-xs text-gray-400">{institutionId.length}/{expectedIdLength(role)} digits</div>
 
                 {lookingUp && (
                   <div className="mt-3 flex items-center justify-center gap-2 text-sm" style={{ color: '#6c63ff' }}>
@@ -586,7 +595,7 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
           <div className="mx-auto max-w-md">
             <button
               onClick={handleSubmit}
-              disabled={institutionId.length !== 9 || !name.trim() || !sex}
+              disabled={!isValidId(institutionId, role) || !name.trim() || !sex}
               className="w-full rounded-xl py-4 text-sm font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
               style={{ background: '#1a1a4e' }}
             >

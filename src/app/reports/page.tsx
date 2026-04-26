@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import PinGate from '@/components/PinGate';
+import { isValidIdAnyRole } from '@/lib/id-validation';
 
 interface TriageRecord {
   triage_id: string;
@@ -156,7 +157,7 @@ export default function ReportsPage() {
 
   // Fetch individual report
   const fetchIndividual = useCallback(async () => {
-    if (!authToken || individualId.length !== 9) return;
+    if (!authToken || !isValidIdAnyRole(individualId)) return;
     setIndividualLoading(true);
     try {
       const params = new URLSearchParams({ type: 'individual', id: individualId });
@@ -629,12 +630,12 @@ export default function ReportsPage() {
                     inputMode="numeric"
                     value={individualId}
                     onChange={(e) => setIndividualId(e.target.value.replace(/\D/g, '').slice(0, 9))}
-                    placeholder="Enter 9-digit Institution ID"
+                    placeholder="Enter 7-digit Employee ID or 9-digit Institution ID"
                     className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-3 font-mono tracking-wider focus:border-indigo-500"
                   />
                   <button
                     onClick={fetchIndividual}
-                    disabled={individualId.length !== 9}
+                    disabled={!isValidIdAnyRole(individualId)}
                     className="rounded-xl px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
                     style={{ background: '#1a1a4e' }}
                   >
