@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import PinGate from '@/components/PinGate';
 import MedicalAssessment from '@/components/MedicalAssessment';
 import { isValidIdAnyRole } from '@/lib/id-validation';
+import { daysSince } from '@/lib/format';
 
 interface TriageRecord {
   triage_id: string;
@@ -39,6 +40,7 @@ interface Stats {
   totalVisits: number;
   todayVisits: number;
   flaggedToday: number;
+  pendingCount: number;
 }
 
 type Tab = 'recent' | 'pending' | 'flagged' | 'search';
@@ -278,7 +280,16 @@ export default function Dashboard() {
               }`}
             >
               {t === 'recent' && 'Recent Visits'}
-              {t === 'pending' && 'Pending Review'}
+              {t === 'pending' && (
+                <>
+                  Pending Review
+                  {stats?.pendingCount && stats.pendingCount > 0 ? (
+                    <span className="ml-1.5 inline-block rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      {stats.pendingCount}
+                    </span>
+                  ) : null}
+                </>
+              )}
               {t === 'flagged' && 'Flagged / Abnormal'}
               {t === 'search' && 'Patient History'}
             </button>
@@ -358,6 +369,11 @@ export default function Dashboard() {
                         ) : (
                           <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-bold text-yellow-700">
                             Pending Review
+                          </span>
+                        )}
+                        {tab === 'pending' && !record.updated_by && (
+                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-700">
+                            Waiting {daysSince(record.created_at)}
                           </span>
                         )}
                       </div>

@@ -338,7 +338,7 @@ export async function getPendingReviewRecords(limit = 50) {
     FROM triage_records t
     JOIN members m ON t.institution_id = m.institution_id
     WHERE t.updated_by IS NULL
-    ORDER BY t.created_at DESC
+    ORDER BY t.created_at ASC
     LIMIT ${limit}
   `;
 }
@@ -372,12 +372,14 @@ export async function getDashboardStats() {
   const totalVisits = await sql`SELECT COUNT(*) as count FROM triage_records`;
   const todayVisits = await sql`SELECT COUNT(*) as count FROM triage_records WHERE visit_date = ${new Date().toLocaleDateString('en-PH')}`;
   const flaggedToday = await sql`SELECT COUNT(*) as count FROM triage_records WHERE visit_date = ${new Date().toLocaleDateString('en-PH')} AND flags != '' AND flags IS NOT NULL`;
+  const pendingCount = await sql`SELECT COUNT(*) as count FROM triage_records WHERE updated_by IS NULL`;
 
   return {
     totalMembers: Number(totalMembers[0].count),
     totalVisits: Number(totalVisits[0].count),
     todayVisits: Number(todayVisits[0].count),
     flaggedToday: Number(flaggedToday[0].count),
+    pendingCount: Number(pendingCount[0].count),
   };
 }
 
