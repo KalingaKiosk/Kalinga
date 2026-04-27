@@ -22,7 +22,7 @@ interface FieldConfig {
   key: keyof VitalSignsData;
   label: string;
   unit: string;
-  placeholder: string;
+  placeholder?: string;
   min: number;
   max: number;
   required?: boolean;
