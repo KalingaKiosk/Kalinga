@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 
-// Export the interface so page.tsx can import it
 export interface VitalSignsData {
   heartRate: string;
   spo2: string;
@@ -8,7 +7,13 @@ export interface VitalSignsData {
   bloodPressure?: string;
 }
 
-export default function VitalSigns() {
+interface VitalSignsProps {
+  onSubmit: (vitalSigns: VitalSignsData) => void;
+  onBack?: () => void;
+  allergies?: string;
+}
+
+export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsProps) {
   const [vitals, setVitals] = useState<VitalSignsData>({
     heartRate: '',
     spo2: '',
@@ -66,7 +71,7 @@ export default function VitalSigns() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Submitting Vital Signs to Dashboard:', vitals);
+    onSubmit(vitals);
   };
 
   return (
@@ -154,12 +159,23 @@ export default function VitalSigns() {
           />
         </div>
 
-        <button
-          type="submit"
-          className="w-full py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md shadow transition mt-6"
-        >
-          Save Vital Signs Log
-        </button>
+        <div className="flex items-center gap-3 mt-6">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-1/3 py-2 px-4 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-md transition"
+            >
+              Back
+            </button>
+          )}
+          <button
+            type="submit"
+            className="flex-1 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md shadow transition"
+          >
+            Save Vital Signs Log
+          </button>
+        </div>
       </form>
     </div>
   );
