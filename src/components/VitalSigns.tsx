@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 
-interface VitalSignsData {
+// Export the interface so page.tsx can import it
+export interface VitalSignsData {
   heartRate: string;
   spo2: string;
   temperature?: string;
@@ -66,7 +67,6 @@ export default function VitalSigns() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Submitting Vital Signs to Dashboard:', vitals);
-    // Send payload to your database or logging API endpoint here
   };
 
   return (
