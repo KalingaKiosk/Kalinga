@@ -26,44 +26,50 @@ export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsPr
 
   const handleAutoRead = async () => {
     setLoading(true);
-    setStatusMessage('Reading from MAX30100 sensor on Pi...');
+    setStatusMessage('Connecting to MAX30100 sensor...');
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_PI_API_URL;
-      console.log('Fetching sensor readings from URL:', apiUrl);
+      const rawEnvUrl = process.env.NEXT_PUBLIC_PI_API_URL;
 
-      if (!apiUrl) {
+      if (!rawEnvUrl) {
         throw new Error('NEXT_PUBLIC_PI_API_URL environment variable is missing.');
       }
 
-      const response = await fetch(apiUrl, { method: 'GET' });
+      // Sanitize URL to avoid double pathing (/api/vitals/api/vitals) or trailing slash 404s
+      let cleanUrl = rawEnvUrl.trim().replace(/\/+$/, '');
+      if (!cleanUrl.endsWith('/api/vitals')) {
+        cleanUrl = `${cleanUrl}/api/vitals`;
+      }
+
+      console.log('Requesting endpoint:', cleanUrl);
+
+      const response = await fetch(cleanUrl, { method: 'GET' });
 
       if (!response.ok) {
-        throw new Error(`Sensor API HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log('Received sensor response:', data);
+      console.log('Sensor payload:', data);
 
-      // Support both heartRate and pulse_rate JSON key names
-      const pulse = data.heartRate || data.pulse_rate || '';
-      const oxygen = data.spo2 || '';
+      const pulse = data.heartRate ?? data.pulse_rate ?? '';
+      const oxygen = data.spo2 ?? '';
 
-      if (pulse || oxygen) {
+      if (pulse !== '' || oxygen !== '') {
         setVitals((prev) => ({
           ...prev,
           heartRate: pulse.toString(),
           spo2: oxygen.toString(),
         }));
-        setStatusMessage('Readings updated successfully!');
+        setStatusMessage('Readings retrieved successfully!');
       } else if (data.status === 'Initializing') {
-        setStatusMessage('Sensor is initializing... Keep finger on sensor and try again in 5 seconds.');
+        setStatusMessage('Sensor initializing... Keep finger on sensor and retry.');
       } else {
-        throw new Error('No valid pulse or SpO2 reading returned from sensor.');
+        throw new Error('No vital signs detected in API payload.');
       }
     } catch (error: any) {
-      console.error('Error fetching sensor data:', error);
-      setStatusMessage(`Error: ${error.message || 'Could not connect to Raspberry Pi.'}`);
+      console.error('Fetch error:', error);
+      setStatusMessage(`Error: ${error.message || 'Could not reach Raspberry Pi.'}`);
     } finally {
       setLoading(false);
     }
