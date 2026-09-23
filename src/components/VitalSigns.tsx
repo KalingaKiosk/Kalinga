@@ -24,35 +24,42 @@ export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsPr
   const [loading, setLoading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>('');
 
-  // Fetch live sensor data from the Raspberry Pi API
   const handleAutoRead = async () => {
     setLoading(true);
     setStatusMessage('Reading from MAX30100 sensor on Pi...');
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_PI_API_URL;
+      console.log('Fetching sensor readings from URL:', apiUrl);
 
       if (!apiUrl) {
-        throw new Error('NEXT_PUBLIC_PI_API_URL is not configured in Vercel.');
+        throw new Error('NEXT_PUBLIC_PI_API_URL environment variable is missing.');
       }
 
       const response = await fetch(apiUrl, { method: 'GET' });
 
       if (!response.ok) {
-        throw new Error(`Sensor API error: ${response.statusText}`);
+        throw new Error(`Sensor API HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log('Received sensor response:', data);
 
-      if (data.status === 'success') {
+      // Support both heartRate and pulse_rate JSON key names
+      const pulse = data.heartRate || data.pulse_rate || '';
+      const oxygen = data.spo2 || '';
+
+      if (pulse || oxygen) {
         setVitals((prev) => ({
           ...prev,
-          heartRate: data.pulse_rate.toString(),
-          spo2: data.spo2.toString(),
+          heartRate: pulse.toString(),
+          spo2: oxygen.toString(),
         }));
         setStatusMessage('Readings updated successfully!');
+      } else if (data.status === 'Initializing') {
+        setStatusMessage('Sensor is initializing... Keep finger on sensor and try again in 5 seconds.');
       } else {
-        throw new Error(data.message || 'Failed to capture sensor data.');
+        throw new Error('No valid pulse or SpO2 reading returned from sensor.');
       }
     } catch (error: any) {
       console.error('Error fetching sensor data:', error);
