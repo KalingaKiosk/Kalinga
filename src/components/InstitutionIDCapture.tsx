@@ -493,10 +493,6 @@ export default function InstitutionIDCapture({ role, onSubmit, onBack }: Institu
                       <option value="Grade 10">Grade 10</option>
                       <option value="Grade 11">Grade 11</option>
                       <option value="Grade 12">Grade 12</option>
-                      <option value="1st Year College">1st Year College</option>
-                      <option value="2nd Year College">2nd Year College</option>
-                      <option value="3rd Year College">3rd Year College</option>
-                      <option value="4th Year College">4th Year College</option>
                     </select>
 
                     <label className="mt-4 block text-sm font-medium text-gray-700">Section</label>
