@@ -8,7 +8,6 @@ export interface VitalSignsData {
   temperature: string;
 }
 
-// 1. Updated interface to include onSubmit, onBack, and allergies
 interface VitalSignsProps {
   vitals?: VitalSignsData;
   onVitalsChange?: (updatedVitals: VitalSignsData) => void;
@@ -17,7 +16,6 @@ interface VitalSignsProps {
   allergies?: string;
 }
 
-// 2. Destructure the new props in the component signature
 export default function VitalSigns({ 
   vitals, 
   onVitalsChange, 
@@ -129,115 +127,121 @@ export default function VitalSigns({
   };
 
   return (
-    <form onSubmit={handleSubmitForm} className="w-full max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-md border border-gray-100">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Patient Vital Signs</h2>
-        <span className="text-xs px-2.5 py-1 bg-green-50 text-green-700 rounded-full font-medium border border-green-200">
-          Cloudflare API Connected
-        </span>
-      </div>
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-gray-50/50">
+      <form 
+        onSubmit={handleSubmitForm} 
+        className="w-full max-w-2xl bg-white rounded-xl shadow-lg border border-gray-100 p-6 md:p-8"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-800">Patient Vital Signs</h2>
+          <span className="text-xs px-2.5 py-1 bg-green-50 text-green-700 rounded-full font-medium border border-green-200">
+            Cloudflare API Connected
+          </span>
+        </div>
 
-      <div className="space-y-6">
-        {/* --- PULSE & SPO2 SECTION --- */}
-        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700">Pulse Oximeter (MAX30100)</h3>
-            <button
-              type="button"
-              onClick={handleReadOximeter}
-              disabled={loadingOximeter}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs font-medium rounded-md transition"
-            >
-              {loadingOximeter ? 'Reading Sensor...' : 'Read Pulse & SpO2'}
-            </button>
+        <div className="space-y-6">
+          {/* --- PULSE & SPO2 SECTION --- */}
+          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Pulse Oximeter (MAX30100)</h3>
+              <button
+                type="button"
+                onClick={handleReadOximeter}
+                disabled={loadingOximeter}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs font-medium rounded-md transition"
+              >
+                {loadingOximeter ? 'Reading Sensor...' : 'Read Pulse & SpO2'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Heart Rate / Pulse (BPM)
+                </label>
+                <input
+                  type="number"
+                  value={currentVitals.heartRate}
+                  onChange={(e) => handleInputChange('heartRate', e.target.value)}
+                  placeholder="-- BPM"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Blood Oxygen (SpO2 %)
+                </label>
+                <input
+                  type="number"
+                  value={currentVitals.spo2}
+                  onChange={(e) => handleInputChange('spo2', e.target.value)}
+                  placeholder="-- %"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+            </div>
+
+            {oximeterStatus && (
+              <p className="mt-2 text-xs text-gray-500 font-mono">{oximeterStatus}</p>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* --- THERMOMETER SECTION --- */}
+          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Thermometer (Arduino Serial)</h3>
+              <button
+                type="button"
+                onClick={handleReadTemperature}
+                disabled={loadingTemp}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-medium rounded-md transition"
+              >
+                {loadingTemp ? 'Triggering Arduino...' : 'Read Temperature'}
+              </button>
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
-                Heart Rate / Pulse (BPM)
+                Body Temperature (°C)
               </label>
               <input
                 type="number"
-                value={currentVitals.heartRate}
-                onChange={(e) => handleInputChange('heartRate', e.target.value)}
-                placeholder="-- BPM"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                step="0.01"
+                value={currentVitals.temperature}
+                onChange={(e) => handleInputChange('temperature', e.target.value)}
+                placeholder="-- °C"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Blood Oxygen (SpO2 %)
-              </label>
-              <input
-                type="number"
-                value={currentVitals.spo2}
-                onChange={(e) => handleInputChange('spo2', e.target.value)}
-                placeholder="-- %"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+
+            {tempStatus && (
+              <p className="mt-2 text-xs text-gray-500 font-mono">{tempStatus}</p>
+            )}
           </div>
 
-          {oximeterStatus && (
-            <p className="mt-2 text-xs text-gray-500 font-mono">{oximeterStatus}</p>
-          )}
-        </div>
-
-        {/* --- THERMOMETER SECTION --- */}
-        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700">Thermometer (Arduino Serial)</h3>
-            <button
-              type="button"
-              onClick={handleReadTemperature}
-              disabled={loadingTemp}
-              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-medium rounded-md transition"
-            >
-              {loadingTemp ? 'Triggering Arduino...' : 'Read Temperature'}
-            </button>
+          {/* --- NAVIGATION BUTTONS --- */}
+          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+            {onBack ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition"
+              >
+                Back
+              </button>
+            ) : <div />}
+            
+            {onSubmit && (
+              <button
+                type="submit"
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition shadow-sm"
+              >
+                Continue
+              </button>
+            )}
           </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Body Temperature (°C)
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={currentVitals.temperature}
-              onChange={(e) => handleInputChange('temperature', e.target.value)}
-              placeholder="-- °C"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          {tempStatus && (
-            <p className="mt-2 text-xs text-gray-500 font-mono">{tempStatus}</p>
-          )}
         </div>
-
-        {/* --- NAVIGATION BUTTONS FOR FLOW STEP --- */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-          {onBack && (
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition"
-            >
-              Back
-            </button>
-          )}
-          {onSubmit && (
-            <button
-              type="submit"
-              className="ml-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition"
-            >
-              Continue
-            </button>
-          )}
-        </div>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 }
