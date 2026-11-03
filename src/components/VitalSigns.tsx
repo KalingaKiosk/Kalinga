@@ -1,195 +1,212 @@
+'use client';
+
 import React, { useState } from 'react';
 
 export interface VitalSignsData {
   heartRate: string;
   spo2: string;
-  temperature?: string;
-  bloodPressure?: string;
+  temperature: string;
 }
 
 interface VitalSignsProps {
-  onSubmit: (vitalSigns: VitalSignsData) => void;
-  onBack?: () => void;
-  allergies?: string;
+  vitals?: VitalSignsData;
+  onVitalsChange?: (updatedVitals: VitalSignsData) => void;
 }
 
-export default function VitalSigns({ onSubmit, onBack, allergies }: VitalSignsProps) {
-  const [vitals, setVitals] = useState<VitalSignsData>({
-    heartRate: '',
-    spo2: '',
-    temperature: '',
-    bloodPressure: '',
+export default function VitalSigns({ vitals, onVitalsChange }: VitalSignsProps) {
+  // Local state for vital values
+  const [currentVitals, setCurrentVitals] = useState<VitalSignsData>({
+    heartRate: vitals?.heartRate || '',
+    spo2: vitals?.spo2 || '',
+    temperature: vitals?.temperature || '',
   });
 
-  const [loading, setLoading] = useState<boolean>(false);
-  const [statusMessage, setStatusMessage] = useState<string>('');
+  // Separate loading states & feedback messages for each sensor
+  const [loadingOximeter, setLoadingOximeter] = useState(false);
+  const [loadingTemp, setLoadingTemp] = useState(false);
+  const [oximeterStatus, setOximeterStatus] = useState<string>('');
+  const [tempStatus, setTempStatus] = useState<string>('');
 
-  const handleAutoRead = async () => {
-    setLoading(true);
-    setStatusMessage('Connecting to MAX30100 sensor...');
+  // Helper to extract base URL configured in Vercel
+  const getBaseUrl = (): string => {
+    const rawUrl = process.env.NEXT_PUBLIC_PI_API_URL || '';
+    if (!rawUrl) {
+      throw new Error('NEXT_PUBLIC_PI_API_URL is missing in environment variables.');
+    }
+    return rawUrl.trim().replace(/\/+$/, '');
+  };
+
+  // 1. Fetch Pulse & SpO2 from MAX30100
+  const handleReadOximeter = async () => {
+    setLoadingOximeter(true);
+    setOximeterStatus('Connecting to MAX30100 sensor...');
 
     try {
-      const rawEnvUrl = process.env.NEXT_PUBLIC_PI_API_URL;
-
-      if (!rawEnvUrl) {
-        throw new Error('NEXT_PUBLIC_PI_API_URL environment variable is missing.');
-      }
-
-      // Sanitize URL to avoid double pathing (/api/vitals/api/vitals) or trailing slash 404s
-      let cleanUrl = rawEnvUrl.trim().replace(/\/+$/, '');
-      if (!cleanUrl.endsWith('/api/vitals')) {
-        cleanUrl = `${cleanUrl}/api/vitals`;
-      }
-
-      console.log('Requesting endpoint:', cleanUrl);
-
-      const response = await fetch(cleanUrl, { method: 'GET' });
+      const baseUrl = getBaseUrl();
+      const response = await fetch(`${baseUrl}/api/vitals`, { method: 'GET' });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log('Sensor payload:', data);
+      console.log('Oximeter Response:', data);
 
-      const pulse = data.heartRate ?? data.pulse_rate ?? '';
-      const oxygen = data.spo2 ?? '';
+      const pulse = data.heartRate ? data.heartRate.toString() : '';
+      const oxygen = data.spo2 ? data.spo2.toString() : '';
+      const statusText = data.status || (data.isStable ? ' stabilized' : ' measuring');
 
-      if (pulse !== '' || oxygen !== '') {
-        setVitals((prev) => ({
-          ...prev,
-          heartRate: pulse.toString(),
-          spo2: oxygen.toString(),
-        }));
-        setStatusMessage('Readings retrieved successfully!');
-      } else if (data.status === 'Initializing') {
-        setStatusMessage('Sensor initializing... Keep finger on sensor and retry.');
-      } else {
-        throw new Error('No vital signs detected in API payload.');
-      }
+      const updated = {
+        ...currentVitals,
+        heartRate: pulse,
+        spo2: oxygen,
+      };
+
+      setCurrentVitals(updated);
+      if (onVitalsChange) onVitalsChange(updated);
+      setOximeterStatus(`Status: ${statusText}`);
     } catch (error: any) {
-      console.error('Fetch error:', error);
-      setStatusMessage(`Error: ${error.message || 'Could not reach Raspberry Pi.'}`);
+      console.error('Oximeter Fetch Error:', error);
+      setOximeterStatus(`Error: ${error.message}`);
     } finally {
-      setLoading(false);
+      setLoadingOximeter(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setVitals({
-      ...vitals,
-      [e.target.name]: e.target.value,
-    });
+  // 2. Fetch Temperature on-demand from Arduino
+  const handleReadTemperature = async () => {
+    setLoadingTemp(true);
+    setTempStatus('Triggering Arduino thermometer...');
+
+    try {
+      const baseUrl = getBaseUrl();
+      const response = await fetch(`${baseUrl}/api/temperature`, { method: 'GET' });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Arduino Temp Response:', data);
+
+      if (data.success && data.temperature !== null) {
+        const formattedTemp = Number(data.temperature).toFixed(2);
+
+        const updated = {
+          ...currentVitals,
+          temperature: formattedTemp,
+        };
+
+        setCurrentVitals(updated);
+        if (onVitalsChange) onVitalsChange(updated);
+        setTempStatus(`Success: ${formattedTemp} °C`);
+      } else {
+        throw new Error(data.status || 'Failed to capture temperature reading.');
+      }
+    } catch (error: any) {
+      console.error('Temperature Fetch Error:', error);
+      setTempStatus(`Error: ${error.message}`);
+    } finally {
+      setLoadingTemp(false);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(vitals);
+  // Manual input field handler
+  const handleInputChange = (field: keyof VitalSignsData, value: string) => {
+    const updated = { ...currentVitals, [field]: value };
+    setCurrentVitals(updated);
+    if (onVitalsChange) onVitalsChange(updated);
   };
 
   return (
-    <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-xl shadow-md border border-gray-200">
+    <div className="w-full max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-md border border-gray-100">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-800">Patient Vital Signs</h2>
-        <button
-          type="button"
-          onClick={handleAutoRead}
-          disabled={loading}
-          className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow transition disabled:opacity-50"
-        >
-          {loading ? 'Reading...' : 'Auto-Read from Sensor'}
-        </button>
+        <span className="text-xs px-2.5 py-1 bg-green-50 text-green-700 rounded-full font-medium border border-green-200">
+          Cloudflare API Connected
+        </span>
       </div>
 
-      {statusMessage && (
-        <p
-          className={`text-xs mb-4 p-2 rounded ${
-            statusMessage.startsWith('Error')
-              ? 'bg-red-50 text-red-600 border border-red-200'
-              : 'bg-green-50 text-green-600 border border-green-200'
-          }`}
-        >
-          {statusMessage}
-        </p>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Heart Rate / Pulse (BPM)
-          </label>
-          <input
-            type="number"
-            name="heartRate"
-            value={vitals.heartRate}
-            onChange={handleChange}
-            placeholder="e.g. 72"
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Oxygen Saturation — SpO2 (%)
-          </label>
-          <input
-            type="number"
-            name="spo2"
-            value={vitals.spo2}
-            onChange={handleChange}
-            placeholder="e.g. 98"
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Body Temperature (°C)
-          </label>
-          <input
-            type="text"
-            name="temperature"
-            value={vitals.temperature}
-            onChange={handleChange}
-            placeholder="e.g. 36.6"
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Blood Pressure (mmHg)
-          </label>
-          <input
-            type="text"
-            name="bloodPressure"
-            value={vitals.bloodPressure}
-            onChange={handleChange}
-            placeholder="e.g. 120/80"
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div className="flex items-center gap-3 mt-6">
-          {onBack && (
+      <div className="space-y-6">
+        {/* --- PULSE & SPO2 SECTION --- */}
+        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700">Pulse Oximeter (MAX30100)</h3>
             <button
               type="button"
-              onClick={onBack}
-              className="w-1/3 py-2 px-4 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-md transition"
+              onClick={handleReadOximeter}
+              disabled={loadingOximeter}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs font-medium rounded-md transition"
             >
-              Back
+              {loadingOximeter ? 'Reading Sensor...' : 'Read Pulse & SpO2'}
             </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Heart Rate / Pulse (BPM)
+              </label>
+              <input
+                type="number"
+                value={currentVitals.heartRate}
+                onChange={(e) => handleInputChange('heartRate', e.target.value)}
+                placeholder="-- BPM"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Blood Oxygen (SpO2 %)
+              </label>
+              <input
+                type="number"
+                value={currentVitals.spo2}
+                onChange={(e) => handleInputChange('spo2', e.target.value)}
+                placeholder="-- %"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {oximeterStatus && (
+            <p className="mt-2 text-xs text-gray-500 font-mono">{oximeterStatus}</p>
           )}
-          <button
-            type="submit"
-            className="flex-1 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md shadow transition"
-          >
-            Save Vital Signs Log
-          </button>
         </div>
-      </form>
+
+        {/* --- THERMOMETER SECTION --- */}
+        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700">Thermometer (Arduino Serial)</h3>
+            <button
+              type="button"
+              onClick={handleReadTemperature}
+              disabled={loadingTemp}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-medium rounded-md transition"
+            >
+              {loadingTemp ? 'Triggering Arduino...' : 'Read Temperature'}
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Body Temperature (°C)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={currentVitals.temperature}
+              onChange={(e) => handleInputChange('temperature', e.target.value)}
+              placeholder="-- °C"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          {tempStatus && (
+            <p className="mt-2 text-xs text-gray-500 font-mono">{tempStatus}</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
