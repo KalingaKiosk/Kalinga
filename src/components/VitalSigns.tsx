@@ -8,26 +8,34 @@ export interface VitalSignsData {
   temperature: string;
 }
 
+// 1. Updated interface to include onSubmit, onBack, and allergies
 interface VitalSignsProps {
   vitals?: VitalSignsData;
   onVitalsChange?: (updatedVitals: VitalSignsData) => void;
+  onSubmit?: (vitals: VitalSignsData) => void;
+  onBack?: () => void;
+  allergies?: string;
 }
 
-export default function VitalSigns({ vitals, onVitalsChange }: VitalSignsProps) {
-  // Local state for vital values
+// 2. Destructure the new props in the component signature
+export default function VitalSigns({ 
+  vitals, 
+  onVitalsChange, 
+  onSubmit, 
+  onBack, 
+  allergies 
+}: VitalSignsProps) {
   const [currentVitals, setCurrentVitals] = useState<VitalSignsData>({
     heartRate: vitals?.heartRate || '',
     spo2: vitals?.spo2 || '',
     temperature: vitals?.temperature || '',
   });
 
-  // Separate loading states & feedback messages for each sensor
   const [loadingOximeter, setLoadingOximeter] = useState(false);
   const [loadingTemp, setLoadingTemp] = useState(false);
   const [oximeterStatus, setOximeterStatus] = useState<string>('');
   const [tempStatus, setTempStatus] = useState<string>('');
 
-  // Helper to extract base URL configured in Vercel
   const getBaseUrl = (): string => {
     const rawUrl = process.env.NEXT_PUBLIC_PI_API_URL || '';
     if (!rawUrl) {
@@ -36,7 +44,6 @@ export default function VitalSigns({ vitals, onVitalsChange }: VitalSignsProps) 
     return rawUrl.trim().replace(/\/+$/, '');
   };
 
-  // 1. Fetch Pulse & SpO2 from MAX30100
   const handleReadOximeter = async () => {
     setLoadingOximeter(true);
     setOximeterStatus('Connecting to MAX30100 sensor...');
@@ -50,7 +57,6 @@ export default function VitalSigns({ vitals, onVitalsChange }: VitalSignsProps) 
       }
 
       const data = await response.json();
-      console.log('Oximeter Response:', data);
 
       const pulse = data.heartRate ? data.heartRate.toString() : '';
       const oxygen = data.spo2 ? data.spo2.toString() : '';
@@ -73,7 +79,6 @@ export default function VitalSigns({ vitals, onVitalsChange }: VitalSignsProps) 
     }
   };
 
-  // 2. Fetch Temperature on-demand from Arduino
   const handleReadTemperature = async () => {
     setLoadingTemp(true);
     setTempStatus('Triggering Arduino thermometer...');
@@ -87,7 +92,6 @@ export default function VitalSigns({ vitals, onVitalsChange }: VitalSignsProps) 
       }
 
       const data = await response.json();
-      console.log('Arduino Temp Response:', data);
 
       if (data.success && data.temperature !== null) {
         const formattedTemp = Number(data.temperature).toFixed(2);
@@ -111,15 +115,21 @@ export default function VitalSigns({ vitals, onVitalsChange }: VitalSignsProps) 
     }
   };
 
-  // Manual input field handler
   const handleInputChange = (field: keyof VitalSignsData, value: string) => {
     const updated = { ...currentVitals, [field]: value };
     setCurrentVitals(updated);
     if (onVitalsChange) onVitalsChange(updated);
   };
 
+  const handleSubmitForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (onSubmit) {
+      onSubmit(currentVitals);
+    }
+  };
+
   return (
-    <div className="w-full max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-md border border-gray-100">
+    <form onSubmit={handleSubmitForm} className="w-full max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-md border border-gray-100">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-800">Patient Vital Signs</h2>
         <span className="text-xs px-2.5 py-1 bg-green-50 text-green-700 rounded-full font-medium border border-green-200">
@@ -206,7 +216,28 @@ export default function VitalSigns({ vitals, onVitalsChange }: VitalSignsProps) 
             <p className="mt-2 text-xs text-gray-500 font-mono">{tempStatus}</p>
           )}
         </div>
+
+        {/* --- NAVIGATION BUTTONS FOR FLOW STEP --- */}
+        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition"
+            >
+              Back
+            </button>
+          )}
+          {onSubmit && (
+            <button
+              type="submit"
+              className="ml-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition"
+            >
+              Continue
+            </button>
+          )}
+        </div>
       </div>
-    </div>
+    </form>
   );
 }
