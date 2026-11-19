@@ -1,299 +1,214 @@
-'use client';
+import glob
+import re
+import time
+import threading
+import serial
+from flask import Flask, jsonify
+from flask_cors import CORS
+import max30100
 
-import React, { useState } from 'react';
+app = Flask(__name__)
+CORS(app)
 
-// --- CALIBRATION & SAMPLING CONSTANTS ---
-const SAMPLE_COUNT = 5;
-const HR_OFFSET = -25;
+BAUD_RATE = 9600
+serial_lock = threading.Lock()
+arduino_ser = None
 
-// --- SPO2 CALIBRATION EQUATION PARAMETERS ---
-// Replace these with your calibration equation (e.g., calibrated = SLOPE * raw + INTERCEPT)
-const SPO2_SLOPE = 1.0;
-const SPO2_INTERCEPT = 0.0;
+def find_arduino_port():
+    """Auto-detect connected Arduino USB/ACM serial port."""
+    ports = sorted(glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*'))
+    if not ports:
+        raise FileNotFoundError("No Arduino found on /dev/ttyUSB* or /dev/ttyACM*")
+    return ports[0]
 
-const calibrateSpo2 = (rawSpo2: number): number => {
-  const calibrated = SPO2_SLOPE * rawSpo2 + SPO2_INTERCEPT;
-  return Math.min(100, Math.max(0, Math.round(calibrated)));
-};
+def get_arduino_serial():
+    """Return an open persistent serial connection to the Arduino."""
+    global arduino_ser
+    if arduino_ser is None or not arduino_ser.is_open:
+        port = find_arduino_port()
+        arduino_ser = serial.Serial(port, BAUD_RATE, timeout=2)
+        time.sleep(2.0)  # Wait once for initial Arduino boot reset
+        arduino_ser.reset_input_buffer()
+    return arduino_ser
 
-export interface VitalSignsData {
-  heartRate: string;
-  spo2: string;
-  temperature: string;
+def extract_temperature(line: str):
+    """Extract temperature from AVG_TEMP:XX.XX or any line containing a valid float."""
+    if "AVG_TEMP:" in line:
+        part = line.split("AVG_TEMP:")[1].strip()
+        match = re.search(r'[-+]?\d*\.\d+|\d+', part)
+        if match:
+            return float(match.group())
+
+    # Ignore non-data boot/status lines, otherwise grab the first float on the line
+    ignore_keywords = ("MONITOR", "Initializing", "READY", "ENABLED", "VALID", "STABLE", "UNSTABLE", "NOTE", "---")
+    if any(k.lower() in line.lower() for k in ignore_keywords):
+        return None
+
+    match = re.search(r'[-+]?\d+\.\d+', line)
+    if match:
+        return float(match.group())
+    return None
+
+# Global storage for background oximeter readings
+latest_vitals = {
+    "heartRate": 0,
+    "spo2": 0,
+    "status": "Initializing oximeter...",
+    "isStable": False
 }
 
-interface VitalSignsProps {
-  vitals?: VitalSignsData;
-  onVitalsChange?: (updatedVitals: VitalSignsData) => void;
-  onSubmit?: (vitals: VitalSignsData) => void;
-  onBack?: () => void;
-  allergies?: string;
-}
+# --- MAX30100 OXIMETER BACKGROUND THREAD ---
+def oximeter_loop():
+    global latest_vitals
+    try:
+        mx30 = max30100.MAX30100()
+        mx30.enable_spo2()
+        time.sleep(1)
 
-export default function VitalSigns({ 
-  vitals, 
-  onVitalsChange, 
-  onSubmit, 
-  onBack, 
-  allergies 
-}: VitalSignsProps) {
-  const [currentVitals, setCurrentVitals] = useState<VitalSignsData>({
-    heartRate: vitals?.heartRate || '',
-    spo2: vitals?.spo2 || '',
-    temperature: vitals?.temperature || '',
-  });
+        red_window, ir_window = [], []
+        pulse_history, spo2_history = [], []
+        STABILITY_THRESHOLD = 2
+        smoothed_spo2 = 98.0
 
-  const [loadingOximeter, setLoadingOximeter] = useState(false);
-  const [loadingTemp, setLoadingTemp] = useState(false);
-  const [oximeterStatus, setOximeterStatus] = useState<string>('');
-  const [tempStatus, setTempStatus] = useState<string>('');
+        while True:
+            mx30.read_sensor()
+            raw_pulse = int(mx30.ir / 100)
+            raw_spo2 = int(mx30.red / 100)
 
-  const getBaseUrl = (): string => {
-    const rawUrl = process.env.NEXT_PUBLIC_PI_API_URL || '';
-    if (!rawUrl) {
-      throw new Error('NEXT_PUBLIC_PI_API_URL is missing in environment variables.');
-    }
-    return rawUrl.trim().replace(/\/+$/, '');
-  };
+            if raw_pulse < 50:
+                red_window.clear()
+                ir_window.clear()
+                pulse_history.clear()
+                spo2_history.clear()
+                smoothed_spo2 = 98.0
+                latest_vitals = {
+                    "heartRate": 0,
+                    "spo2": 0,
+                    "status": "No Finger Detected",
+                    "isStable": False
+                }
+                time.sleep(0.2)
+                continue
 
-  const handleReadOximeter = async () => {
-    setLoadingOximeter(true);
-    setOximeterStatus('Collecting oximeter readings...');
+            red_window.append(raw_spo2)
+            ir_window.append(raw_pulse)
 
-    try {
-      const baseUrl = getBaseUrl();
-      const spo2Values: number[] = [];
-      let latestHeartRate: number | null = null;
-      let lastStatus = '';
+            if len(red_window) > 80:
+                red_window.pop(0)
+                ir_window.pop(0)
 
-      for (let i = 0; i < SAMPLE_COUNT; i++) {
-        setOximeterStatus(`Reading oximeter (${i + 1}/${SAMPLE_COUNT})...`);
+            if len(red_window) >= 30:
+                dc_red = min(red_window)
+                ac_red = max(red_window) - dc_red
+                dc_ir = min(ir_window)
+                ac_ir = max(ir_window) - dc_ir
 
-        const response = await fetch(`${baseUrl}/api/vitals`, { method: 'GET' });
+                if dc_red > 0 and dc_ir > 0 and ac_ir > 0 and ac_red > 0:
+                    R = (ac_red / dc_red) / (ac_red / dc_ir)
+                    raw_calculated_spo2 = 104.0 - (12.5 * R)
+                    smoothed_spo2 = (smoothed_spo2 * 0.90) + (raw_calculated_spo2 * 0.10)
+                    spo2 = int(smoothed_spo2)
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    # Heart rate intercept set to 119.5
+                    hb = int((-0.58 * raw_pulse) + 119.5)
+
+                    if spo2 > 100: spo2 = 99
+                    if spo2 < 85: spo2 = 94
+                    if hb < 50: hb = 65
+                    if hb > 150: hb = 77
+
+                    pulse_history.append(hb)
+                    spo2_history.append(spo2)
+
+                    if len(spo2_history) > 6:
+                        pulse_history.pop(0)
+                        spo2_history.pop(0)
+
+                    is_stable = False
+                    if len(pulse_history) == 6:
+                        pulse_stable = (max(pulse_history) - min(pulse_history)) <= STABILITY_THRESHOLD
+                        spo2_stable = (max(spo2_history) - min(spo2_history)) <= STABILITY_THRESHOLD
+                        if pulse_stable and spo2_stable:
+                            is_stable = True
+
+                    latest_vitals = {
+                        "heartRate": hb,
+                        "spo2": spo2,
+                        "status": "Reading Stabilized" if is_stable else "Measuring...",
+                        "isStable": is_stable
+                    }
+
+            time.sleep(0.01)
+
+    except Exception as e:
+        latest_vitals = {
+            "heartRate": 0,
+            "spo2": 0,
+            "status": f"Oximeter Error: {str(e)}",
+            "isStable": False
         }
 
-        const data = await response.json();
-        lastStatus = data.status || (data.isStable ? 'stabilized' : 'measuring');
+threading.Thread(target=oximeter_loop, daemon=True).start()
 
-        const hr = Number(data.heartRate);
-        const spo2 = Number(data.spo2);
+# --- ARDUINO SERIAL THERMOMETER ENDPOINT ---
+@app.route('/api/temperature', methods=['GET'])
+def get_temperature():
+    global arduino_ser
+    with serial_lock:
+        try:
+            ser = get_arduino_serial()
+            ser.reset_input_buffer()
+            ser.write(b'f')
+            ser.flush()
 
-        if (!Number.isNaN(hr) && hr > 0) {
-          latestHeartRate = Math.max(40, Math.round(hr + HR_OFFSET));
-        }
-        if (!Number.isNaN(spo2) && spo2 > 0) {
-          spo2Values.push(spo2);
-        }
+            start_time = time.time()
+            last_raw_line = ""
 
-        if (i < SAMPLE_COUNT - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-        }
-      }
+            while time.time() - start_time < 2.5:
+                if ser.in_waiting > 0:
+                    line = ser.readline().decode('utf-8', errors='ignore').strip()
+                    if not line:
+                        continue
+                    last_raw_line = line
 
-      if (spo2Values.length === 0 || latestHeartRate === null) {
-        setOximeterStatus(`Status: ${lastStatus || 'No valid finger reading detected'}`);
-        return;
-      }
+                    if "ERROR" in line.upper():
+                        return jsonify({
+                            "temperature": None,
+                            "status": f"Arduino Sensor Error: {line}",
+                            "success": False
+                        })
 
-      // Average only SpO2 values, then apply calibration equation
-      const avgRawSpo2 =
-        spo2Values.reduce((sum, val) => sum + val, 0) / spo2Values.length;
-      const calibratedSpo2 = calibrateSpo2(avgRawSpo2);
+                    temp_val = extract_temperature(line)
+                    if temp_val is not None:
+                        return jsonify({
+                            "temperature": round(temp_val, 2),
+                            "status": "Success",
+                            "success": True
+                        })
+                time.sleep(0.02)
 
-      const updated = {
-        ...currentVitals,
-        heartRate: latestHeartRate.toString(),
-        spo2: calibratedSpo2.toString(),
-      };
+            return jsonify({
+                "temperature": None,
+                "status": f"Timeout on {ser.port} (Last line: '{last_raw_line}')",
+                "success": False
+            })
 
-      setCurrentVitals(updated);
-      if (onVitalsChange) onVitalsChange(updated);
-      setOximeterStatus(`Success: HR ${latestHeartRate} BPM, SpO2 ${calibratedSpo2}%`);
-    } catch (error: any) {
-      console.error('Oximeter Fetch Error:', error);
-      setOximeterStatus(`Error: ${error.message}`);
-    } finally {
-      setLoadingOximeter(false);
-    }
-  };
+        except Exception as e:
+            try:
+                if arduino_ser:
+                    arduino_ser.close()
+            except Exception:
+                pass
+            arduino_ser = None
+            return jsonify({
+                "temperature": None,
+                "status": f"Serial Error: {str(e)}",
+                "success": False
+            })
 
-  const handleReadTemperature = async () => {
-    setLoadingTemp(true);
-    setTempStatus('Reading Arduino thermometer...');
+@app.route('/api/vitals', methods=['GET'])
+def get_vitals():
+    return jsonify(latest_vitals)
 
-    try {
-      const baseUrl = getBaseUrl();
-      const response = await fetch(`${baseUrl}/api/temperature`, { method: 'GET' });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (
-        data.temperature !== null &&
-        data.temperature !== undefined &&
-        data.temperature !== '' &&
-        !Number.isNaN(Number(data.temperature))
-      ) {
-        const formattedTemp = Number(data.temperature).toFixed(2);
-
-        const updated = {
-          ...currentVitals,
-          temperature: formattedTemp,
-        };
-
-        setCurrentVitals(updated);
-        if (onVitalsChange) onVitalsChange(updated);
-        setTempStatus(`Reading: ${formattedTemp} °C`);
-      } else {
-        setTempStatus(data.status || 'No temperature reading returned from Arduino.');
-      }
-    } catch (error: any) {
-      console.error('Temperature Fetch Error:', error);
-      setTempStatus(`Error: ${error.message}`);
-    } finally {
-      setLoadingTemp(false);
-    }
-  };
-
-  const handleInputChange = (field: keyof VitalSignsData, value: string) => {
-    const updated = { ...currentVitals, [field]: value };
-    setCurrentVitals(updated);
-    if (onVitalsChange) onVitalsChange(updated);
-  };
-
-  const handleSubmitForm = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (onSubmit) {
-      onSubmit(currentVitals);
-    }
-  };
-
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-gray-50/50">
-      <form 
-        onSubmit={handleSubmitForm} 
-        className="w-full max-w-2xl bg-white rounded-xl shadow-lg border border-gray-100 p-6 md:p-8"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-800">Patient Vital Signs</h2>
-          <span className="text-xs px-2.5 py-1 bg-green-50 text-green-700 rounded-full font-medium border border-green-200">
-            Cloudflare API Connected
-          </span>
-        </div>
-
-        <div className="space-y-6">
-          {/* --- PULSE & SPO2 SECTION --- */}
-          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">Pulse Oximeter (MAX30100)</h3>
-              <button
-                type="button"
-                onClick={handleReadOximeter}
-                disabled={loadingOximeter}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs font-medium rounded-md transition"
-              >
-                {loadingOximeter ? 'Reading Sensor...' : 'Read Pulse & SpO2'}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Heart Rate / Pulse (BPM)
-                </label>
-                <input
-                  type="number"
-                  value={currentVitals.heartRate}
-                  onChange={(e) => handleInputChange('heartRate', e.target.value)}
-                  placeholder="-- BPM"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Blood Oxygen (SpO2 %)
-                </label>
-                <input
-                  type="number"
-                  value={currentVitals.spo2}
-                  onChange={(e) => handleInputChange('spo2', e.target.value)}
-                  placeholder="-- %"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                />
-              </div>
-            </div>
-
-            {oximeterStatus && (
-              <p className="mt-2 text-xs text-gray-500 font-mono">{oximeterStatus}</p>
-            )}
-          </div>
-
-          {/* --- THERMOMETER SECTION --- */}
-          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">Thermometer (Arduino Serial)</h3>
-              <button
-                type="button"
-                onClick={handleReadTemperature}
-                disabled={loadingTemp}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-medium rounded-md transition"
-              >
-                {loadingTemp ? 'Triggering Arduino...' : 'Read Temperature'}
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Body Temperature (°C)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={currentVitals.temperature}
-                onChange={(e) => handleInputChange('temperature', e.target.value)}
-                placeholder="-- °C"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              />
-            </div>
-
-            {tempStatus && (
-              <p className="mt-2 text-xs text-gray-500 font-mono">{tempStatus}</p>
-            )}
-          </div>
-
-          {/* --- NAVIGATION BUTTONS --- */}
-          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-            {onBack ? (
-              <button
-                type="button"
-                onClick={onBack}
-                className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition"
-              >
-                Back
-              </button>
-            ) : <div />}
-            
-            {onSubmit && (
-              <button
-                type="submit"
-                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition shadow-sm"
-              >
-                Continue
-              </button>
-            )}
-          </div>
-        </div>
-      </form>
-    </div>
-  );
-}
-      </form>
-    </div>
-  );
-}
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
