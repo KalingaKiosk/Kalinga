@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 // --- CALIBRATION & SAMPLING CONSTANTS ---
 const SAMPLE_COUNT = 5;
 const CALIBRATION_OFFSET = 3.39;
+const HR_OFFSET = -15; // Set to 0 if you already lowered app.py intercept to 119.5
 
 // --- SPO2 CALIBRATION EQUATION PARAMETERS ---
 // Replace these with your calibration equation (e.g., calibrated = SLOPE * raw + INTERCEPT)
@@ -82,7 +83,7 @@ export default function VitalSigns({
         const spo2 = Number(data.spo2);
 
         if (!Number.isNaN(hr) && hr > 0) {
-          latestHeartRate = hr;
+          latestHeartRate = Math.max(40, Math.round(hr + HR_OFFSET));
         }
         if (!Number.isNaN(spo2) && spo2 > 0) {
           spo2Values.push(spo2);
@@ -127,8 +128,9 @@ export default function VitalSigns({
     try {
       const baseUrl = getBaseUrl();
       const readings: number[] = [];
+      let lastBackendStatus = '';
 
-      // Collect 5 sensor readings without rejecting invalid/flagged responses
+      // Collect 5 sensor readings without rejecting flagged/low readings
       for (let i = 0; i < SAMPLE_COUNT; i++) {
         setTempStatus(`Collecting readings (${i + 1}/${SAMPLE_COUNT})...`);
 
@@ -137,8 +139,15 @@ export default function VitalSigns({
 
           if (response.ok) {
             const data = await response.json();
+            if (data.status) {
+              lastBackendStatus = data.status;
+            }
 
-            if (data.temperature !== null && data.temperature !== undefined && data.temperature !== '') {
+            if (
+              data.temperature !== null &&
+              data.temperature !== undefined &&
+              data.temperature !== ''
+            ) {
               const temp = Number(data.temperature);
               if (!Number.isNaN(temp)) {
                 readings.push(temp);
@@ -155,7 +164,11 @@ export default function VitalSigns({
       }
 
       if (readings.length === 0) {
-        setTempStatus('No numeric temperature received from Arduino.');
+        setTempStatus(
+          lastBackendStatus
+            ? `Arduino Error: ${lastBackendStatus}`
+            : 'No numeric temperature received from Arduino.'
+        );
         return;
       }
 
