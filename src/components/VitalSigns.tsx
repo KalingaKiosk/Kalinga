@@ -1,6 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+
+// --- CALIBRATION & FILTERING CONSTANTS ---
+const SAMPLE_COUNT = 10;
+const EMA_ALPHA = 0.25;
+const OUTLIER_LIMIT = 1.0;
+const STABILITY_LIMIT = 0.50;
+const CALIBRATION_OFFSET = 3.39;
+const MIN_TEMP = 25.0;
+const MAX_TEMP = 42.0;
 
 export interface VitalSignsData {
   heartRate: string;
@@ -33,6 +42,10 @@ export default function VitalSigns({
   const [loadingTemp, setLoadingTemp] = useState(false);
   const [oximeterStatus, setOximeterStatus] = useState<string>('');
   const [tempStatus, setTempStatus] = useState<string>('');
+
+  // Persistent EMA state across readings
+  const filteredTempRef = useRef<number>(0);
+  const firstReadingRef = useRef<boolean>(true);
 
   const getBaseUrl = (): string => {
     const rawUrl = process.env.NEXT_PUBLIC_PI_API_URL || '';
@@ -79,32 +92,85 @@ export default function VitalSigns({
 
   const handleReadTemperature = async () => {
     setLoadingTemp(true);
-    setTempStatus('Triggering Arduino thermometer...');
+    setTempStatus('Collecting sensor readings...');
 
     try {
       const baseUrl = getBaseUrl();
-      const response = await fetch(`${baseUrl}/api/temperature`, { method: 'GET' });
+      const readings: number[] = [];
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      // STEP 1: COLLECT SENSOR READINGS (10 samples, 150ms interval)
+      for (let i = 0; i < SAMPLE_COUNT; i++) {
+        setTempStatus(`Collecting readings (${i + 1}/${SAMPLE_COUNT})...`);
+
+        const response = await fetch(`${baseUrl}/api/temperature`, { method: 'GET' });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.temperature !== null) {
+          const temp = Number(data.temperature);
+          if (!Number.isNaN(temp) && temp >= MIN_TEMP && temp <= MAX_TEMP) {
+            readings.push(temp);
+          }
+        }
+
+        if (i < SAMPLE_COUNT - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
       }
 
-      const data = await response.json();
+      // STEP 2: CHECK VALID SAMPLES
+      if (readings.length < 7) {
+        setTempStatus('INVALID - REPOSITION SENSOR');
+        return;
+      }
 
-      if (data.success && data.temperature !== null) {
-        const formattedTemp = Number(data.temperature).toFixed(2);
+      // STEP 3: SORT READINGS
+      readings.sort((a, b) => a - b);
+      const validCount = readings.length;
 
-        const updated = {
-          ...currentVitals,
-          temperature: formattedTemp,
-        };
-
-        setCurrentVitals(updated);
-        if (onVitalsChange) onVitalsChange(updated);
-        setTempStatus(`Success: ${formattedTemp} °C`);
+      // STEP 4: MEDIAN FILTER
+      let median: number;
+      if (validCount % 2 === 0) {
+        median = (readings[validCount / 2 - 1] + readings[validCount / 2]) / 2.0;
       } else {
-        throw new Error(data.status || 'Failed to capture temperature reading.');
+        median = readings[Math.floor(validCount / 2)];
       }
+
+      // STEP 5: OUTLIER REJECTION
+      if (!firstReadingRef.current && Math.abs(median - filteredTempRef.current) > OUTLIER_LIMIT) {
+        setTempStatus('UNSTABLE - RETAKE MEASUREMENT');
+        return;
+      }
+
+      // STEP 6: EMA FILTER
+      if (firstReadingRef.current) {
+        filteredTempRef.current = median;
+        firstReadingRef.current = false;
+      } else {
+        filteredTempRef.current =
+          EMA_ALPHA * median + (1.0 - EMA_ALPHA) * filteredTempRef.current;
+      }
+
+      // STEP 7: SAMPLE STABILITY
+      const range = readings[validCount - 1] - readings[0];
+      const stabilityText = range <= STABILITY_LIMIT ? 'STABLE' : 'UNSTABLE';
+
+      // STEP 8: EXPERIMENTAL CALIBRATION
+      const estimatedTemp = filteredTempRef.current + CALIBRATION_OFFSET;
+      const formattedTemp = estimatedTemp.toFixed(2);
+
+      const updated = {
+        ...currentVitals,
+        temperature: formattedTemp,
+      };
+
+      setCurrentVitals(updated);
+      if (onVitalsChange) onVitalsChange(updated);
+      setTempStatus(`Success: ${formattedTemp} °C (${stabilityText})`);
     } catch (error: any) {
       console.error('Temperature Fetch Error:', error);
       setTempStatus(`Error: ${error.message}`);
