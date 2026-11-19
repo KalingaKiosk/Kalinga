@@ -1,15 +1,22 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 
 // --- CALIBRATION & FILTERING CONSTANTS ---
-const SAMPLE_COUNT = 10;
-const EMA_ALPHA = 0.25;
-const OUTLIER_LIMIT = 1.0;
-const STABILITY_LIMIT = 0.50;
+const SAMPLE_COUNT = 5;
 const CALIBRATION_OFFSET = 3.39;
 const MIN_TEMP = 25.0;
 const MAX_TEMP = 42.0;
+
+// --- SPO2 CALIBRATION EQUATION PARAMETERS ---
+// Replace these with your calibration equation (e.g., calibrated = SLOPE * raw + INTERCEPT)
+const SPO2_SLOPE = 1.0;
+const SPO2_INTERCEPT = 0.0;
+
+const calibrateSpo2 = (rawSpo2: number): number => {
+  const calibrated = SPO2_SLOPE * rawSpo2 + SPO2_INTERCEPT;
+  return Math.min(100, Math.max(0, Math.round(calibrated)));
+};
 
 export interface VitalSignsData {
   heartRate: string;
@@ -43,10 +50,6 @@ export default function VitalSigns({
   const [oximeterStatus, setOximeterStatus] = useState<string>('');
   const [tempStatus, setTempStatus] = useState<string>('');
 
-  // Persistent EMA state across readings
-  const filteredTempRef = useRef<number>(0);
-  const firstReadingRef = useRef<boolean>(true);
-
   const getBaseUrl = (): string => {
     const rawUrl = process.env.NEXT_PUBLIC_PI_API_URL || '';
     if (!rawUrl) {
@@ -57,31 +60,60 @@ export default function VitalSigns({
 
   const handleReadOximeter = async () => {
     setLoadingOximeter(true);
-    setOximeterStatus('Connecting to MAX30100 sensor...');
+    setOximeterStatus('Collecting oximeter readings...');
 
     try {
       const baseUrl = getBaseUrl();
-      const response = await fetch(`${baseUrl}/api/vitals`, { method: 'GET' });
+      const spo2Values: number[] = [];
+      let latestHeartRate: number | null = null;
+      let lastStatus = '';
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      for (let i = 0; i < SAMPLE_COUNT; i++) {
+        setOximeterStatus(`Reading oximeter (${i + 1}/${SAMPLE_COUNT})...`);
+
+        const response = await fetch(`${baseUrl}/api/vitals`, { method: 'GET' });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        lastStatus = data.status || (data.isStable ? 'stabilized' : 'measuring');
+
+        const hr = Number(data.heartRate);
+        const spo2 = Number(data.spo2);
+
+        if (!Number.isNaN(hr) && hr > 0) {
+          latestHeartRate = hr;
+        }
+        if (!Number.isNaN(spo2) && spo2 > 0) {
+          spo2Values.push(spo2);
+        }
+
+        if (i < SAMPLE_COUNT - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
       }
 
-      const data = await response.json();
+      if (spo2Values.length === 0 || latestHeartRate === null) {
+        setOximeterStatus(`Status: ${lastStatus || 'No valid finger reading detected'}`);
+        return;
+      }
 
-      const pulse = data.heartRate ? data.heartRate.toString() : '';
-      const oxygen = data.spo2 ? data.spo2.toString() : '';
-      const statusText = data.status || (data.isStable ? ' stabilized' : ' measuring');
+      // Average only SpO2 values, then apply calibration equation
+      const avgRawSpo2 =
+        spo2Values.reduce((sum, val) => sum + val, 0) / spo2Values.length;
+      const calibratedSpo2 = calibrateSpo2(avgRawSpo2);
 
       const updated = {
         ...currentVitals,
-        heartRate: pulse,
-        spo2: oxygen,
+        heartRate: latestHeartRate.toString(),
+        spo2: calibratedSpo2.toString(),
       };
 
       setCurrentVitals(updated);
       if (onVitalsChange) onVitalsChange(updated);
-      setOximeterStatus(`Status: ${statusText}`);
+      setOximeterStatus(`Success: HR ${latestHeartRate} BPM, SpO2 ${calibratedSpo2}%`);
     } catch (error: any) {
       console.error('Oximeter Fetch Error:', error);
       setOximeterStatus(`Error: ${error.message}`);
@@ -98,7 +130,7 @@ export default function VitalSigns({
       const baseUrl = getBaseUrl();
       const readings: number[] = [];
 
-      // STEP 1: COLLECT SENSOR READINGS (10 samples, 150ms interval)
+      // Collect 5 sensor readings
       for (let i = 0; i < SAMPLE_COUNT; i++) {
         setTempStatus(`Collecting readings (${i + 1}/${SAMPLE_COUNT})...`);
 
@@ -122,45 +154,22 @@ export default function VitalSigns({
         }
       }
 
-      // STEP 2: CHECK VALID SAMPLES
-      if (readings.length < 7) {
+      // Check valid samples (at least 3 of 5)
+      if (readings.length < 3) {
         setTempStatus('INVALID - REPOSITION SENSOR');
         return;
       }
 
-      // STEP 3: SORT READINGS
+      // Sort and take median
       readings.sort((a, b) => a - b);
       const validCount = readings.length;
+      const median =
+        validCount % 2 === 0
+          ? (readings[validCount / 2 - 1] + readings[validCount / 2]) / 2.0
+          : readings[Math.floor(validCount / 2)];
 
-      // STEP 4: MEDIAN FILTER
-      let median: number;
-      if (validCount % 2 === 0) {
-        median = (readings[validCount / 2 - 1] + readings[validCount / 2]) / 2.0;
-      } else {
-        median = readings[Math.floor(validCount / 2)];
-      }
-
-      // STEP 5: OUTLIER REJECTION
-      if (!firstReadingRef.current && Math.abs(median - filteredTempRef.current) > OUTLIER_LIMIT) {
-        setTempStatus('UNSTABLE - RETAKE MEASUREMENT');
-        return;
-      }
-
-      // STEP 6: EMA FILTER
-      if (firstReadingRef.current) {
-        filteredTempRef.current = median;
-        firstReadingRef.current = false;
-      } else {
-        filteredTempRef.current =
-          EMA_ALPHA * median + (1.0 - EMA_ALPHA) * filteredTempRef.current;
-      }
-
-      // STEP 7: SAMPLE STABILITY
-      const range = readings[validCount - 1] - readings[0];
-      const stabilityText = range <= STABILITY_LIMIT ? 'STABLE' : 'UNSTABLE';
-
-      // STEP 8: EXPERIMENTAL CALIBRATION
-      const estimatedTemp = filteredTempRef.current + CALIBRATION_OFFSET;
+      // Apply calibration offset
+      const estimatedTemp = median + CALIBRATION_OFFSET;
       const formattedTemp = estimatedTemp.toFixed(2);
 
       const updated = {
@@ -170,7 +179,7 @@ export default function VitalSigns({
 
       setCurrentVitals(updated);
       if (onVitalsChange) onVitalsChange(updated);
-      setTempStatus(`Success: ${formattedTemp} °C (${stabilityText})`);
+      setTempStatus(`Success: ${formattedTemp} °C`);
     } catch (error: any) {
       console.error('Temperature Fetch Error:', error);
       setTempStatus(`Error: ${error.message}`);
