@@ -2,11 +2,9 @@
 
 import React, { useState } from 'react';
 
-// --- CALIBRATION & FILTERING CONSTANTS ---
+// --- CALIBRATION & SAMPLING CONSTANTS ---
 const SAMPLE_COUNT = 5;
 const CALIBRATION_OFFSET = 3.39;
-const MIN_TEMP = 25.0;
-const MAX_TEMP = 42.0;
 
 // --- SPO2 CALIBRATION EQUATION PARAMETERS ---
 // Replace these with your calibration equation (e.g., calibrated = SLOPE * raw + INTERCEPT)
@@ -130,7 +128,7 @@ export default function VitalSigns({
       const baseUrl = getBaseUrl();
       const readings: number[] = [];
 
-      // Collect 5 sensor readings
+      // Collect 5 sensor readings without range/reposition gates
       for (let i = 0; i < SAMPLE_COUNT; i++) {
         setTempStatus(`Collecting readings (${i + 1}/${SAMPLE_COUNT})...`);
 
@@ -144,7 +142,7 @@ export default function VitalSigns({
 
         if (data.success && data.temperature !== null) {
           const temp = Number(data.temperature);
-          if (!Number.isNaN(temp) && temp >= MIN_TEMP && temp <= MAX_TEMP) {
+          if (!Number.isNaN(temp)) {
             readings.push(temp);
           }
         }
@@ -154,10 +152,8 @@ export default function VitalSigns({
         }
       }
 
-      // Check valid samples (at least 3 of 5)
-      if (readings.length < 3) {
-        setTempStatus('INVALID - REPOSITION SENSOR');
-        return;
+      if (readings.length === 0) {
+        throw new Error('No temperature reading returned from Arduino.');
       }
 
       // Sort and take median
