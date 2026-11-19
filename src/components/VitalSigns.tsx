@@ -4,8 +4,7 @@ import React, { useState } from 'react';
 
 // --- CALIBRATION & SAMPLING CONSTANTS ---
 const SAMPLE_COUNT = 5;
-const CALIBRATION_OFFSET = 3.39;
-const HR_OFFSET = -15; // Set to 0 if you already lowered app.py intercept to 119.5
+const HR_OFFSET = -25;
 
 // --- SPO2 CALIBRATION EQUATION PARAMETERS ---
 // Replace these with your calibration equation (e.g., calibrated = SLOPE * raw + INTERCEPT)
@@ -123,75 +122,37 @@ export default function VitalSigns({
 
   const handleReadTemperature = async () => {
     setLoadingTemp(true);
-    setTempStatus('Collecting sensor readings...');
+    setTempStatus('Reading Arduino thermometer...');
 
     try {
       const baseUrl = getBaseUrl();
-      const readings: number[] = [];
-      let lastBackendStatus = '';
+      const response = await fetch(`${baseUrl}/api/temperature`, { method: 'GET' });
 
-      // Collect 5 sensor readings without rejecting flagged/low readings
-      for (let i = 0; i < SAMPLE_COUNT; i++) {
-        setTempStatus(`Collecting readings (${i + 1}/${SAMPLE_COUNT})...`);
-
-        try {
-          const response = await fetch(`${baseUrl}/api/temperature`, { method: 'GET' });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.status) {
-              lastBackendStatus = data.status;
-            }
-
-            if (
-              data.temperature !== null &&
-              data.temperature !== undefined &&
-              data.temperature !== ''
-            ) {
-              const temp = Number(data.temperature);
-              if (!Number.isNaN(temp)) {
-                readings.push(temp);
-              }
-            }
-          }
-        } catch {
-          // Continue collecting remaining samples even if an individual sample fails
-        }
-
-        if (i < SAMPLE_COUNT - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 150));
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      if (readings.length === 0) {
-        setTempStatus(
-          lastBackendStatus
-            ? `Arduino Error: ${lastBackendStatus}`
-            : 'No numeric temperature received from Arduino.'
-        );
-        return;
+      const data = await response.json();
+
+      if (
+        data.temperature !== null &&
+        data.temperature !== undefined &&
+        data.temperature !== '' &&
+        !Number.isNaN(Number(data.temperature))
+      ) {
+        const formattedTemp = Number(data.temperature).toFixed(2);
+
+        const updated = {
+          ...currentVitals,
+          temperature: formattedTemp,
+        };
+
+        setCurrentVitals(updated);
+        if (onVitalsChange) onVitalsChange(updated);
+        setTempStatus(`Reading: ${formattedTemp} °C`);
+      } else {
+        setTempStatus(data.status || 'No temperature reading returned from Arduino.');
       }
-
-      // Sort and take median of whatever readings were captured
-      readings.sort((a, b) => a - b);
-      const validCount = readings.length;
-      const median =
-        validCount % 2 === 0
-          ? (readings[validCount / 2 - 1] + readings[validCount / 2]) / 2.0
-          : readings[Math.floor(validCount / 2)];
-
-      // Apply calibration offset and always output the result
-      const estimatedTemp = median + CALIBRATION_OFFSET;
-      const formattedTemp = estimatedTemp.toFixed(2);
-
-      const updated = {
-        ...currentVitals,
-        temperature: formattedTemp,
-      };
-
-      setCurrentVitals(updated);
-      if (onVitalsChange) onVitalsChange(updated);
-      setTempStatus(`Reading: ${formattedTemp} °C (${validCount}/${SAMPLE_COUNT} samples)`);
     } catch (error: any) {
       console.error('Temperature Fetch Error:', error);
       setTempStatus(`Error: ${error.message}`);
@@ -328,6 +289,10 @@ export default function VitalSigns({
             )}
           </div>
         </div>
+      </form>
+    </div>
+  );
+}
       </form>
     </div>
   );
