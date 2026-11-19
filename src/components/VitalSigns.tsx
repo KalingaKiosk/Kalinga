@@ -128,23 +128,25 @@ export default function VitalSigns({
       const baseUrl = getBaseUrl();
       const readings: number[] = [];
 
-      // Collect 5 sensor readings without range/reposition gates
+      // Collect 5 sensor readings without rejecting invalid/flagged responses
       for (let i = 0; i < SAMPLE_COUNT; i++) {
         setTempStatus(`Collecting readings (${i + 1}/${SAMPLE_COUNT})...`);
 
-        const response = await fetch(`${baseUrl}/api/temperature`, { method: 'GET' });
+        try {
+          const response = await fetch(`${baseUrl}/api/temperature`, { method: 'GET' });
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
+          if (response.ok) {
+            const data = await response.json();
 
-        const data = await response.json();
-
-        if (data.success && data.temperature !== null) {
-          const temp = Number(data.temperature);
-          if (!Number.isNaN(temp)) {
-            readings.push(temp);
+            if (data.temperature !== null && data.temperature !== undefined && data.temperature !== '') {
+              const temp = Number(data.temperature);
+              if (!Number.isNaN(temp)) {
+                readings.push(temp);
+              }
+            }
           }
+        } catch {
+          // Continue collecting remaining samples even if an individual sample fails
         }
 
         if (i < SAMPLE_COUNT - 1) {
@@ -153,10 +155,11 @@ export default function VitalSigns({
       }
 
       if (readings.length === 0) {
-        throw new Error('No temperature reading returned from Arduino.');
+        setTempStatus('No numeric temperature received from Arduino.');
+        return;
       }
 
-      // Sort and take median
+      // Sort and take median of whatever readings were captured
       readings.sort((a, b) => a - b);
       const validCount = readings.length;
       const median =
@@ -164,7 +167,7 @@ export default function VitalSigns({
           ? (readings[validCount / 2 - 1] + readings[validCount / 2]) / 2.0
           : readings[Math.floor(validCount / 2)];
 
-      // Apply calibration offset
+      // Apply calibration offset and always output the result
       const estimatedTemp = median + CALIBRATION_OFFSET;
       const formattedTemp = estimatedTemp.toFixed(2);
 
@@ -175,7 +178,7 @@ export default function VitalSigns({
 
       setCurrentVitals(updated);
       if (onVitalsChange) onVitalsChange(updated);
-      setTempStatus(`Success: ${formattedTemp} °C`);
+      setTempStatus(`Reading: ${formattedTemp} °C (${validCount}/${SAMPLE_COUNT} samples)`);
     } catch (error: any) {
       console.error('Temperature Fetch Error:', error);
       setTempStatus(`Error: ${error.message}`);
